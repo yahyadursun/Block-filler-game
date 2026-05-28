@@ -1,0 +1,78 @@
+.main-menu {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 79, 216, 0.13), transparent 34%),
+    linear-gradient(315deg, rgba(68, 255, 117, 0.1), transparent 36%),
+    #090616;
+}
+
+.menu-shell {
+  display: grid;
+  gap: 32px;
+  width: min(620px, 100%);
+}
+
+.game-logo h1 {
+  margin: 8px 0 10px;
+  color: #fff;
+  font-size: clamp(3.2rem, 11vw, 6.2rem);
+  line-height: 0.92;
+  letter-spacing: 0;
+  text-shadow:
+    0 0 22px rgba(56, 247, 255, 0.42),
+    7px 0 0 rgba(255, 79, 216, 0.34);
+}
+
+.game-logo p {
+  max-width: 480px;
+  margin: 0;
+  color: #c6cde4;
+  font-family: system-ui, sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.menu-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cyber-btn {
+  min-height: 56px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.cyber-btn.primary {
+  border-color: rgba(56, 247, 255, 0.75);
+  background: linear-gradient(180deg, rgba(56, 247, 255, 0.24), rgba(38, 90, 132, 0.5));
+  box-shadow: 0 0 24px rgba(56, 247, 255, 0.18);
+}
+
+.menu-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: #fff;
+}
+
+.menu-stats strong {
+  font-size: 1.3rem;
+}
+
+@media (max-width: 560px) {
+  .menu-buttons {
+    grid-template-columns: 1fr;
+  }
+}

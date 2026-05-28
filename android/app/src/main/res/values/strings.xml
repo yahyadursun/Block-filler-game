@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">block-filler-game</string>
+    <string name="title_activity_main">block-filler-game</string>
+    <string name="package_name">com.yahya.blockfiller</string>
+    <string name="custom_url_scheme">com.yahya.blockfiller</string>
+</resources>

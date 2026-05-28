@@ -1,0 +1,297 @@
+.game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(56, 247, 255, 0.07), transparent 34%),
+    linear-gradient(315deg, rgba(255, 107, 53, 0.08), transparent 38%),
+    #090616;
+  font-family: 'Orbitron', system-ui, sans-serif;
+}
+
+.game-container::after {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  content: '';
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.025) 50%, rgba(0, 0, 0, 0.08) 50%),
+    linear-gradient(90deg, rgba(255, 79, 216, 0.035), rgba(56, 247, 255, 0.02));
+  background-size: 100% 4px, 3px 100%;
+  mix-blend-mode: screen;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.game-hud,
+.objective-panel,
+.next-panel,
+.touch-controls,
+.state-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(9, 6, 22, 0.78);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(14px);
+}
+
+.game-hud {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 44px repeat(3, minmax(88px, auto)) auto;
+  gap: 10px;
+  align-items: center;
+  width: min(760px, calc(100vw - 28px));
+  min-height: 64px;
+  padding: 10px;
+  transform: translateX(-50%);
+}
+
+.hud-stat,
+.objective-panel > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.label {
+  color: #9aa7c7;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hud-stat strong,
+.objective-panel strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: 'Orbitron', system-ui, sans-serif;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: rgba(56, 247, 255, 0.8);
+  background: rgba(56, 247, 255, 0.12);
+}
+
+.icon-btn {
+  width: 44px;
+  padding: 0;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.pause-btn {
+  padding: 0 16px;
+}
+
+.primary-action {
+  border-color: rgba(68, 255, 117, 0.75);
+  background: linear-gradient(180deg, rgba(68, 255, 117, 0.32), rgba(30, 120, 74, 0.55));
+  box-shadow: 0 0 20px rgba(68, 255, 117, 0.18);
+}
+
+.objective-panel {
+  position: absolute;
+  top: 98px;
+  left: 18px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 220px;
+  padding: 14px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #44ff75, #38f7ff);
+  transition: width 0.2s ease;
+}
+
+.level-meta {
+  display: grid;
+  gap: 8px;
+  color: #d5ddf7;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.next-panel {
+  position: absolute;
+  top: 98px;
+  right: 18px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  width: 112px;
+  padding: 14px;
+}
+
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.queue-item {
+  display: grid;
+  min-height: 58px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.preview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preview-row {
+  display: flex;
+  gap: 3px;
+}
+
+.preview-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.touch-controls {
+  position: absolute;
+  right: 50%;
+  bottom: 18px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 48px 48px minmax(88px, 128px) 48px 48px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  transform: translateX(50%);
+}
+
+.touch-controls button {
+  width: 100%;
+  height: 48px;
+  padding: 0 12px;
+  font-size: 1.1rem;
+}
+
+.state-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 3, 10, 0.58);
+}
+
+.state-panel {
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.state-panel h2 {
+  margin: 8px 0 10px;
+  font-size: 1.6rem;
+}
+
+.state-panel p {
+  margin: 0;
+  color: #c6cde4;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.state-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.state-actions button {
+  flex: 1;
+}
+
+@media (max-width: 760px) {
+  .game-hud {
+    top: 10px;
+    grid-template-columns: 42px 1fr 1fr auto;
+    width: calc(100vw - 20px);
+  }
+
+  .hide-mobile {
+    display: none;
+  }
+
+  .objective-panel {
+    top: 82px;
+    left: 10px;
+    width: calc(100vw - 132px);
+    padding: 10px;
+  }
+
+  .next-panel {
+    top: 82px;
+    right: 10px;
+    width: 104px;
+    padding: 10px;
+  }
+
+  .level-meta {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    font-size: 0.64rem;
+  }
+
+  .touch-controls {
+    bottom: 10px;
+    grid-template-columns: repeat(5, minmax(42px, 1fr));
+    width: calc(100vw - 20px);
+  }
+
+  .touch-controls button {
+    height: 46px;
+    padding: 0 6px;
+  }
+}

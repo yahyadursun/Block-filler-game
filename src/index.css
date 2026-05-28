@@ -1,0 +1,40 @@
+:root {
+  --neon-cyan: #00f3ff;
+  --neon-magenta: #ff00ff;
+  --neon-green: #39ff14;
+  --neon-yellow: #fff200;
+  --bg-dark: #0d0221;
+  --panel-bg: rgba(13, 2, 33, 0.8);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-dark);
+  color: white;
+  font-family: 'VT323', monospace;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+h1, h2, h3 {
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+}
+
+/* Custom Scrollbar for Pixel Art Style */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--neon-magenta);
+}
