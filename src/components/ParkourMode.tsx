@@ -169,6 +169,7 @@ const ParkourMode: React.FC = () => {
   const penaltyTimerRef = useRef<number | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const lastControlAtRef = useRef(0);
+  const gestureRef = useRef({ x: 0, y: 0, time: 0, moved: false });
   const [mode, setMode] = useState<Mode>('BUILD');
   const [blockCount, setBlockCount] = useState(0);
   const [piecesUsed, setPiecesUsed] = useState(0);
@@ -757,6 +758,41 @@ const ParkourMode: React.FC = () => {
     onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault(),
   });
 
+  const handleCanvasPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    gestureRef.current = { x: event.clientX, y: event.clientY, time: Date.now(), moved: false };
+    aimRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handleCanvasPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const gesture = gestureRef.current;
+    if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) gesture.moved = true;
+    aimRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handleCanvasPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    aimRef.current = { x: event.clientX, y: event.clientY };
+    if (modeRef.current !== 'BUILD') {
+      shoot(event.clientX, event.clientY);
+      return;
+    }
+    const gesture = gestureRef.current;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const elapsed = Date.now() - gesture.time;
+    if (Math.max(absX, absY) < 12 && elapsed < 320) {
+      placePiece();
+      vibrate();
+      return;
+    }
+    if (Math.max(absX, absY) < 24) return;
+    if (absX > absY) movePiece(dx < 0 ? -1 : 1);
+    else if (dy > 0) stepPiece();
+    else rotatePiece();
+    vibrate();
+  };
+
   const draw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.clearRect(0, 0, width, height);
     drawBackground(ctx, width, height);
@@ -1041,13 +1077,10 @@ const ParkourMode: React.FC = () => {
     <main className="parkour-mode">
       <canvas
         ref={canvasRef}
-        onPointerMove={(event) => {
-          aimRef.current = { x: event.clientX, y: event.clientY };
-        }}
-        onPointerDown={(event) => {
-          aimRef.current = { x: event.clientX, y: event.clientY };
-          shoot(event.clientX, event.clientY);
-        }}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerCancel={stopHold}
       />
 
       <header className="parkour-hud">

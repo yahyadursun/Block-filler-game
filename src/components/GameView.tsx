@@ -15,6 +15,7 @@ const GameView: React.FC = () => {
   const engineRef = useRef<GameEngine | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const lastControlAtRef = useRef(0);
+  const gestureRef = useRef({ x: 0, y: 0, time: 0, moved: false });
   const {
     score,
     bestScore,
@@ -139,6 +140,38 @@ const GameView: React.FC = () => {
     onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault(),
   });
 
+  const handleCanvasPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    gestureRef.current = { x: event.clientX, y: event.clientY, time: Date.now(), moved: false };
+  };
+
+  const handleCanvasPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const gesture = gestureRef.current;
+    if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) gesture.moved = true;
+  };
+
+  const handleCanvasPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const gesture = gestureRef.current;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const elapsed = Date.now() - gesture.time;
+    if (Math.max(absX, absY) < 12 && elapsed < 320) {
+      engineRef.current?.attemptPlace();
+      vibrate();
+      return;
+    }
+    if (Math.max(absX, absY) < 24) return;
+    if (absX > absY) {
+      engineRef.current?.moveActiveBlocksSideways(dx < 0 ? 'LEFT' : 'RIGHT');
+    } else if (dy > 0) {
+      engineRef.current?.accelerateActiveBlocks();
+    } else {
+      engineRef.current?.rotateActiveBlocks();
+    }
+    vibrate();
+  };
+
   const totalCells = currentLevel.gridSize * currentLevel.gridSize;
   const usedBlocks = currentLevel.blockLimit - remainingBlocks;
   const boardProgress = Math.min(1, cells.size / totalCells);
@@ -151,7 +184,13 @@ const GameView: React.FC = () => {
 
   return (
     <div className="game-container">
-      <canvas ref={canvasRef} />
+      <canvas
+        ref={canvasRef}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerCancel={stopHold}
+      />
 
       <header className="game-hud">
         <button className="icon-btn back" type="button" onClick={() => setView('LEVEL_SELECT')} aria-label="Bolum sec">
