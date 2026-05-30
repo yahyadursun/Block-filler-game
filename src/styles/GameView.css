@@ -2,6 +2,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background:
     linear-gradient(135deg, rgba(56, 247, 255, 0.07), transparent 34%),
@@ -579,7 +580,7 @@ button:active {
   }
 
   .touch-controls {
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 10px);
     right: auto;
     left: 10px;
     grid-template-areas:
@@ -653,6 +654,7 @@ button:active {
   .touch-controls {
     grid-template-columns: 54px minmax(12px, 1fr) 64px 10px 52px 52px;
     grid-template-rows: 52px 52px;
+    bottom: calc(max(20px, env(safe-area-inset-bottom)) + 12px);
   }
 
   .touch-controls button {

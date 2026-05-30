@@ -3,6 +3,7 @@
   display: grid;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   place-items: center;
   padding: 24px;
   overflow: hidden;

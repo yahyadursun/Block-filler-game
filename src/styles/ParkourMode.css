@@ -2,6 +2,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: #080616;
   font-family: 'Orbitron', system-ui, sans-serif;
@@ -280,7 +281,7 @@
   }
 
   .parkour-controls {
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 10px);
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     width: calc(100vw - 20px);
