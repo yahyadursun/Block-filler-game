@@ -529,11 +529,14 @@ button:active {
   }
 
   .next-panel {
-    top: calc(max(8px, env(safe-area-inset-top)) + 118px);
+    top: auto;
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 138px);
     right: 10px;
-    width: 76px;
+    width: min(178px, calc(100vw - 24px));
     padding: 7px;
     gap: 5px;
+    flex-direction: row;
+    align-items: center;
     opacity: 0.86;
   }
 
@@ -568,7 +571,7 @@ button:active {
   }
 
   .next-panel-header strong {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
   }
 
   .deck-readout {
@@ -576,7 +579,9 @@ button:active {
   }
 
   .deck-meter {
+    flex: 1;
     height: 7px;
+    min-width: 70px;
   }
 
   .touch-controls {
