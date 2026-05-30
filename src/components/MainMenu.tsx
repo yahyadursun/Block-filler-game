@@ -21,6 +21,9 @@ const MainMenu: React.FC = () => {
           <button className="cyber-btn" type="button" onClick={() => setView('LEVEL_SELECT')}>
             Bolumler
           </button>
+          <button className="cyber-btn" type="button" onClick={() => setView('PARKOUR_SELECT')}>
+            Parkur Modu
+          </button>
         </div>
 
         <div className="menu-stats">

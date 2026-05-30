@@ -2,13 +2,12 @@ import React from 'react';
 import { useGameStore } from '../store/useGameStore';
 import '../styles/LevelSelect.css';
 
-const LevelSelect: React.FC = () => {
-  const { levels, setLevel, setView, resetGame } = useGameStore();
+const ParkourLevelSelect: React.FC = () => {
+  const { parkourLevels, setParkourLevel, setView } = useGameStore();
 
-  const handleLevelClick = (levelId: number) => {
-    setLevel(levelId);
-    resetGame();
-    setView('GAME');
+  const startLevel = (levelId: number) => {
+    setParkourLevel(levelId);
+    setView('PARKOUR');
   };
 
   return (
@@ -18,24 +17,25 @@ const LevelSelect: React.FC = () => {
           Geri
         </button>
         <div>
-          <span className="label">Block Filler</span>
-          <h1>Bolum Sec</h1>
+          <span className="label">Bounzy Parkur</span>
+          <h1>Parkur Bolumu</h1>
         </div>
       </header>
 
       <div className="levels-grid">
-        {levels.map((lvl) => (
+        {parkourLevels.map((lvl) => (
           <button
             type="button"
             key={lvl.id}
             className={`level-card ${lvl.unlocked ? 'unlocked' : 'locked'}`}
-            onClick={() => lvl.unlocked && handleLevelClick(lvl.id)}
+            onClick={() => lvl.unlocked && startLevel(lvl.id)}
             disabled={!lvl.unlocked}
           >
             <span className="level-number">{lvl.id}</span>
-            <span className="level-size">{lvl.gridSize}x{lvl.gridSize}</span>
-            <span className="level-size">{lvl.blockLimit} blok</span>
-            {lvl.starterCells > 0 && <span className="level-size">{lvl.starterCells} hazir</span>}
+            <span className="level-size">{lvl.buildBlockLimit} parca</span>
+            <span className="level-size">{lvl.shotLimit} tur</span>
+            <span className="level-size">{lvl.volleySize} top</span>
+            {lvl.starterCells > 0 && <span className="level-size">{lvl.starterCells} preblok</span>}
             <span className="stars">{lvl.unlocked ? `${'*'.repeat(lvl.stars)}${'-'.repeat(5 - lvl.stars)}` : 'LOCK'}</span>
           </button>
         ))}
@@ -44,4 +44,4 @@ const LevelSelect: React.FC = () => {
   );
 };
 
-export default LevelSelect;
+export default ParkourLevelSelect;

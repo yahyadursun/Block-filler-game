@@ -1,0 +1,333 @@
+.parkour-mode {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #080616;
+  font-family: 'Orbitron', system-ui, sans-serif;
+}
+
+.parkour-mode canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.parkour-hud,
+.parkour-controls {
+  position: absolute;
+  z-index: 10;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(9, 6, 22, 0.78);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.parkour-hud {
+  top: 14px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto repeat(6, minmax(68px, auto));
+  gap: 10px;
+  align-items: center;
+  width: min(930px, calc(100vw - 24px));
+  min-height: 66px;
+  padding: 10px;
+  transform: translateX(-50%);
+}
+
+.parkour-hud > div {
+  display: grid;
+  gap: 3px;
+}
+
+.parkour-hud strong {
+  color: #fff;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.parkour-controls {
+  right: 50%;
+  bottom: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  transform: translateX(50%);
+}
+
+.parkour-controls button,
+.parkour-hud button {
+  min-width: 92px;
+}
+
+.parkour-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.parkour-controls .auto-action {
+  border-color: rgba(157, 232, 255, 0.5);
+  background: linear-gradient(135deg, rgba(56, 247, 255, 0.18), rgba(143, 124, 255, 0.22));
+  color: #eaffff;
+  box-shadow: 0 0 18px rgba(56, 247, 255, 0.16);
+}
+
+.parkour-next {
+  position: absolute;
+  top: 104px;
+  right: max(16px, calc((100vw - 1180px) / 2));
+  z-index: 9;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: 146px;
+  padding: 12px;
+  border: 1px solid rgba(56, 247, 255, 0.26);
+  background: rgba(9, 6, 22, 0.66);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24), inset 0 0 24px rgba(56, 247, 255, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.parkour-next-grid {
+  display: grid;
+  gap: 5px;
+  min-width: 92px;
+  min-height: 76px;
+  place-content: center;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.parkour-next-row {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+}
+
+.parkour-next-row span {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.parkour-next-row span.filled {
+  border-color: rgba(255, 255, 255, 0.66);
+}
+
+.parkour-next-row span.shielded {
+  border-color: rgba(157, 232, 255, 0.95);
+  outline: 2px solid rgba(157, 232, 255, 0.48);
+  outline-offset: 2px;
+}
+
+.parkour-penalty {
+  position: absolute;
+  top: 94px;
+  left: 50%;
+  z-index: 13;
+  color: #ff4f6d;
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
+  font-weight: 900;
+  text-shadow: 0 0 16px rgba(255, 79, 109, 0.72);
+  transform: translateX(-50%);
+  animation: penalty-pop 0.95s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes penalty-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.88);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.08);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(0.96);
+  }
+}
+
+.parkour-result {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 12;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  width: min(430px, calc(100vw - 32px));
+  padding: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(68, 255, 117, 0.18), transparent 42%),
+    rgba(9, 6, 22, 0.9);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42), inset 0 0 38px rgba(255, 255, 255, 0.045);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.parkour-result.won {
+  border-color: rgba(68, 255, 117, 0.36);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42), 0 0 48px rgba(68, 255, 117, 0.2), inset 0 0 38px rgba(68, 255, 117, 0.06);
+}
+
+.parkour-result.lost {
+  border-color: rgba(255, 79, 109, 0.36);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 79, 109, 0.16), transparent 42%),
+    rgba(9, 6, 22, 0.9);
+}
+
+.parkour-result strong {
+  color: #fff;
+  font-size: clamp(1.65rem, 4vw, 2.55rem);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.25);
+}
+
+.parkour-result p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.45;
+}
+
+.result-stars {
+  color: #ffd447;
+  font-size: 1.35rem;
+  letter-spacing: 0;
+  text-shadow: 0 0 16px rgba(255, 212, 71, 0.5);
+}
+
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.result-stats span {
+  display: grid;
+  gap: 3px;
+  min-height: 56px;
+  place-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.72rem;
+}
+
+.result-stats b {
+  color: #fff;
+  font-size: 1rem;
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.result-burst {
+  position: absolute;
+  inset: -40%;
+  background:
+    conic-gradient(from 0deg, transparent 0deg, rgba(68, 255, 117, 0.18) 14deg, transparent 28deg, transparent 58deg, rgba(255, 212, 71, 0.14) 72deg, transparent 92deg),
+    radial-gradient(circle, rgba(255, 255, 255, 0.13), transparent 38%);
+  animation: result-spin 7s linear infinite;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.parkour-result > :not(.result-burst) {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes result-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .parkour-hud {
+    top: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    width: calc(100vw - 20px);
+  }
+
+  .parkour-hud button {
+    min-width: 0;
+  }
+
+  .parkour-hud strong {
+    font-size: 0.78rem;
+  }
+
+  .parkour-controls {
+    bottom: 10px;
+    width: calc(100vw - 20px);
+    flex-wrap: wrap;
+  }
+
+  .parkour-controls button {
+    flex: 1 1 30%;
+    min-width: 88px;
+  }
+
+  .parkour-next {
+    top: 150px;
+    right: 10px;
+    width: 104px;
+    padding: 9px;
+    gap: 7px;
+  }
+
+  .parkour-next-grid {
+    min-width: 70px;
+    min-height: 58px;
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .parkour-next-row,
+  .parkour-next-row span {
+    gap: 4px;
+  }
+
+  .parkour-next-row span {
+    width: 15px;
+    height: 15px;
+  }
+
+  .parkour-penalty {
+    top: 132px;
+  }
+
+  .parkour-result {
+    top: 54%;
+    padding: 18px;
+    gap: 10px;
+  }
+
+  .result-stats {
+    gap: 6px;
+  }
+
+  .result-stats span {
+    min-height: 48px;
+    font-size: 0.62rem;
+  }
+}

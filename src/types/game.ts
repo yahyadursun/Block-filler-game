@@ -14,6 +14,20 @@ export interface LevelData {
     gridSize: number;
     directions: Direction[];
     speed: number;
+    blockLimit: number;
+    starterCells: number;
+}
+
+export interface ParkourLevelData {
+    id: number;
+    unlocked: boolean;
+    stars: number;
+    buildBlockLimit: number;
+    volleySize: number;
+    shotLimit: number;
+    hpBonus: number;
+    dropInterval: number;
+    starterCells: number;
 }
 
 export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';

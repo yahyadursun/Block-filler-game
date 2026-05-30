@@ -45,6 +45,7 @@ interface BlockData {
   direction: Direction;
   stepTimer: number;
   stepInterval: number;
+  entrySlowTicks: number;
   graphics: PIXI.Container;
   ghost: PIXI.Container;
   pixiColor: number;
@@ -66,6 +67,27 @@ const shapeSize = (shape: number[][]) => ({
 });
 
 const rotateShape = (shape: number[][]) => shape[0].map((_, i) => shape.map((row) => row[i] || 0).reverse());
+
+const weightedShapeNames = (level: number, gridSize: number) => {
+  const maxShapeIndex = Math.min(Object.keys(SHAPES).length - 1, 3 + Math.floor(level / 2));
+  const unlocked = Object.keys(SHAPES).filter((_, index) => index <= maxShapeIndex);
+  const smallWeight = level <= 4 ? 7 : level <= 10 ? 4 : 2;
+  const mediumWeight = level <= 4 ? 3 : level <= 10 ? 4 : 5;
+  const largeWeight = gridSize >= 10 ? 5 : 2;
+  const weights: Record<string, number> = {
+    Dot: smallWeight + 2,
+    Domino: smallWeight + 1,
+    Tri: Math.max(2, smallWeight),
+    Hook: mediumWeight,
+    Square: mediumWeight,
+    Bar: largeWeight,
+    Tee: largeWeight,
+    Zee: largeWeight,
+    Ell: largeWeight,
+  };
+
+  return unlocked.flatMap((name) => Array.from({ length: weights[name] || 1 }, () => name));
+};
 
 export class GameEngine {
   private app: PIXI.Application;
@@ -152,9 +174,15 @@ export class GameEngine {
   private refillQueue() {
     const currentQueue = [...useGameStore.getState().nextPieces];
     const level = useGameStore.getState().level;
-    const shapeNames = Object.keys(SHAPES).filter((_, index) => index <= Math.min(Object.keys(SHAPES).length - 1, 3 + Math.floor(level / 2)));
+    const gridSize = useGameStore.getState().gridSize;
+    const shapeNames = weightedShapeNames(level, gridSize);
+    const availableToQueue = Math.max(
+      0,
+      useGameStore.getState().currentLevel.blockLimit - useGameStore.getState().blocksSpawned - currentQueue.length,
+    );
+    const targetQueueSize = Math.min(this.queueSize, currentQueue.length + availableToQueue);
 
-    while (currentQueue.length < this.queueSize) {
+    while (currentQueue.length < targetQueueSize) {
       const name = shapeNames[Math.floor(Math.random() * shapeNames.length)];
       const color = PIXEL_COLORS[Math.floor(Math.random() * PIXEL_COLORS.length)];
       currentQueue.push({
@@ -180,8 +208,10 @@ export class GameEngine {
     const nextPiece = useGameStore.getState().popNextPiece();
     if (!nextPiece) {
       this.refillQueue();
+      if (useGameStore.getState().nextPieces.length === 0) useGameStore.getState().gameOver();
       return;
     }
+    useGameStore.getState().registerBlockSpawned();
 
     const size = useGameStore.getState().gridSize;
     const direction = this.pickDirection();
@@ -205,7 +235,7 @@ export class GameEngine {
 
     const graphics = new PIXI.Container();
     const ghost = new PIXI.Container();
-    this.drawShape(graphics, nextPiece.shape, nextPiece.pixiColor, 1);
+    this.drawShape(graphics, nextPiece.shape, nextPiece.pixiColor, 0.82);
     this.drawShape(ghost, nextPiece.shape, 0xffffff, 0.18);
     this.blocksContainer.addChild(graphics);
     this.ghostContainer.addChild(ghost);
@@ -215,6 +245,7 @@ export class GameEngine {
       direction,
       stepTimer: 0,
       stepInterval: useGameStore.getState().currentLevel.speed,
+      entrySlowTicks: direction === 'DOWN' ? 2 : 1,
       graphics,
       ghost,
       pixiColor: nextPiece.pixiColor,
@@ -225,6 +256,18 @@ export class GameEngine {
 
     this.renderActiveBlock();
     this.refillQueue();
+  }
+
+  private finishIfDeckIsEmpty() {
+    const state = useGameStore.getState();
+    if (
+      !this.activeBlock &&
+      state.status === 'PLAYING' &&
+      state.remainingBlocks <= 0 &&
+      state.nextPieces.length === 0
+    ) {
+      state.gameOver();
+    }
   }
 
   private drawShape(container: PIXI.Container, shape: number[][], color: number, alpha: number) {
@@ -245,6 +288,43 @@ export class GameEngine {
           .fill({ color, alpha })
           .stroke({ color: 0xffffff, width: 1, alpha: alpha > 0.5 ? 0.52 : 0.18 });
         container.addChild(block);
+      });
+    });
+  }
+
+  private drawActiveShape(block: BlockData) {
+    block.graphics.removeChildren();
+    const filled = useGameStore.getState().cells;
+    block.shape.forEach((row, rowIndex) => {
+      row.forEach((cell, columnIndex) => {
+        if (!cell) return;
+        const targetX = block.gridX + columnIndex;
+        const targetY = block.gridY + rowIndex;
+        const overlapsSettled = filled.has(`${targetX},${targetY}`);
+        const inset = Math.max(2, Math.floor(this.cellSize * 0.07));
+        const tile = new PIXI.Graphics();
+        tile
+          .roundRect(
+            columnIndex * this.cellSize + inset,
+            rowIndex * this.cellSize + inset,
+            this.cellSize - inset * 2,
+            this.cellSize - inset * 2,
+            4,
+          )
+          .fill({ color: overlapsSettled ? 0xff4f6d : block.pixiColor, alpha: overlapsSettled ? 0.62 : 0.82 })
+          .stroke({ color: overlapsSettled ? 0xffffff : 0xffffff, width: overlapsSettled ? 3 : 2, alpha: overlapsSettled ? 0.92 : 0.72 });
+
+        if (overlapsSettled) {
+          const pad = Math.max(5, this.cellSize * 0.18);
+          tile
+            .moveTo(columnIndex * this.cellSize + pad, rowIndex * this.cellSize + pad)
+            .lineTo((columnIndex + 1) * this.cellSize - pad, (rowIndex + 1) * this.cellSize - pad)
+            .moveTo((columnIndex + 1) * this.cellSize - pad, rowIndex * this.cellSize + pad)
+            .lineTo(columnIndex * this.cellSize + pad, (rowIndex + 1) * this.cellSize - pad)
+            .stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
+        }
+
+        block.graphics.addChild(tile);
       });
     });
   }
@@ -369,6 +449,7 @@ export class GameEngine {
     if (!this.activeBlock) return;
     const { startX, startY } = this.getGridBaseCoords();
     const block = this.activeBlock;
+    this.drawActiveShape(block);
     block.graphics.x = startX + block.gridX * this.cellSize;
     block.graphics.y = startY + block.gridY * this.cellSize;
 
@@ -433,7 +514,6 @@ export class GameEngine {
       return;
     }
     this.activeBlock.shape = rotated;
-    this.drawShape(this.activeBlock.graphics, rotated, this.activeBlock.pixiColor, 1);
     this.drawShape(this.activeBlock.ghost, rotated, 0xffffff, 0.18);
     this.renderActiveBlock();
     soundManager.playRotate();
@@ -466,7 +546,7 @@ export class GameEngine {
 
   public accelerateActiveBlocks() {
     if (!this.activeBlock || this.isGameStopped()) return;
-    this.stepActiveBlock();
+    this.stepActiveBlock(true);
     if (this.activeBlock) this.activeBlock.stepTimer = 0;
   }
 
@@ -480,9 +560,27 @@ export class GameEngine {
     return true;
   }
 
-  private stepActiveBlock() {
+  private isInEntryZone(block: BlockData) {
+    const size = useGameStore.getState().gridSize;
+    const { width, height } = shapeSize(block.shape);
+    if (block.direction === 'DOWN') return block.gridY + height <= 1;
+    if (block.direction === 'UP') return block.gridY >= size - 1;
+    if (block.direction === 'RIGHT') return block.gridX + width <= 1;
+    return block.gridX >= size - 1;
+  }
+
+  private getCurrentStepInterval(block: BlockData) {
+    return block.stepInterval;
+  }
+
+  private stepActiveBlock(force = false) {
     if (!this.activeBlock) return;
     const block = this.activeBlock;
+    if (!force && block.entrySlowTicks > 0 && this.isInEntryZone(block)) {
+      block.entrySlowTicks -= 1;
+      this.renderActiveBlock();
+      return;
+    }
     const step = this.getStep(block.direction);
     const nextX = block.gridX + step.x;
     const nextY = block.gridY + step.y;
@@ -514,10 +612,12 @@ export class GameEngine {
     this.blocksContainer.removeChild(block.graphics);
     this.ghostContainer.removeChild(block.ghost);
     this.activeBlock = null;
+    useGameStore.getState().registerBlockConsumed();
     this.redrawSettledBlocks();
     this.playPlacementFx(cells, block.pixiColor);
     this.playWhiteFx(newWhiteKeys);
     soundManager.playSettle();
+    this.finishIfDeckIsEmpty();
   }
 
   private missActiveBlock() {
@@ -526,8 +626,10 @@ export class GameEngine {
     this.blocksContainer.removeChild(this.activeBlock.graphics);
     this.ghostContainer.removeChild(this.activeBlock.ghost);
     this.activeBlock = null;
+    useGameStore.getState().registerBlockConsumed();
     useGameStore.getState().registerMiss();
     soundManager.playError();
+    this.finishIfDeckIsEmpty();
   }
 
   private getWhiteKeys() {
@@ -542,8 +644,10 @@ export class GameEngine {
     if (!this.isReady || this.isDestroyed) return;
     this.settledContainer.removeChildren();
     const { startX, startY } = this.getGridBaseCoords();
+    const size = useGameStore.getState().gridSize;
     useGameStore.getState().cells.forEach((color, key) => {
       const [gridX, gridY] = key.split(',').map(Number);
+      if (gridX < 0 || gridX >= size || gridY < 0 || gridY >= size) return;
       const block = new PIXI.Graphics();
       const inset = Math.max(2, Math.floor(this.cellSize * 0.07));
       block
@@ -558,6 +662,15 @@ export class GameEngine {
         .stroke({ color: 0xffffff, width: 1, alpha: 0.38 });
       this.settledContainer.addChild(block);
     });
+  }
+
+  public refreshBoard() {
+    this.drawGrid();
+    this.redrawSettledBlocks();
+    if (this.activeBlock) {
+      this.drawShape(this.activeBlock.ghost, this.activeBlock.shape, 0xffffff, 0.18);
+      this.renderActiveBlock();
+    }
   }
 
   private isGameStopped() {
@@ -580,7 +693,7 @@ export class GameEngine {
     }
 
     this.activeBlock.stepTimer += delta;
-    if (this.activeBlock.stepTimer >= this.activeBlock.stepInterval) {
+    if (this.activeBlock.stepTimer >= this.getCurrentStepInterval(this.activeBlock)) {
       this.activeBlock.stepTimer = 0;
       this.stepActiveBlock();
     }
@@ -589,13 +702,7 @@ export class GameEngine {
   private onResize = () => {
     if (!this.app || this.isDestroyed) return;
     this.app.renderer.resize(window.innerWidth, window.innerHeight);
-    this.drawGrid();
-    this.redrawSettledBlocks();
-    if (this.activeBlock) {
-      this.drawShape(this.activeBlock.graphics, this.activeBlock.shape, this.activeBlock.pixiColor, 1);
-      this.drawShape(this.activeBlock.ghost, this.activeBlock.shape, 0xffffff, 0.18);
-      this.renderActiveBlock();
-    }
+    this.refreshBoard();
   };
 
   public destroy() {

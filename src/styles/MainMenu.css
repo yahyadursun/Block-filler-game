@@ -1,4 +1,5 @@
 .main-menu {
+  position: relative;
   display: grid;
   width: 100vw;
   height: 100vh;
@@ -11,10 +12,42 @@
     #090616;
 }
 
+.main-menu::before,
+.main-menu::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+}
+
+.main-menu::before {
+  background:
+    linear-gradient(rgba(56, 247, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 247, 255, 0.08) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 72%, transparent);
+  transform: perspective(520px) rotateX(62deg) translateY(12%);
+  transform-origin: center bottom;
+  animation: menuGridDrift 5.5s linear infinite;
+}
+
+.main-menu::after {
+  background:
+    radial-gradient(circle at 18% 28%, rgba(255, 79, 216, 0.2), transparent 16%),
+    radial-gradient(circle at 82% 62%, rgba(68, 255, 117, 0.16), transparent 18%),
+    linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.08) 46%, transparent 54%);
+  background-size: 100% 100%, 100% 100%, 260% 100%;
+  mix-blend-mode: screen;
+  animation: menuLightSweep 4.2s ease-in-out infinite;
+}
+
 .menu-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 32px;
   width: min(620px, 100%);
+  animation: menuRise 0.7s ease-out both;
 }
 
 .game-logo h1 {
@@ -26,6 +59,7 @@
   text-shadow:
     0 0 22px rgba(56, 247, 255, 0.42),
     7px 0 0 rgba(255, 79, 216, 0.34);
+  animation: logoPulse 2.8s ease-in-out infinite;
 }
 
 .game-logo p {
@@ -39,11 +73,13 @@
 
 .menu-buttons {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .cyber-btn {
+  position: relative;
+  overflow: hidden;
   min-height: 56px;
   padding: 0 18px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -52,12 +88,42 @@
   color: white;
   font-size: 1rem;
   font-weight: 900;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.cyber-btn::after {
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 48%;
+  height: 100%;
+  content: '';
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.32s ease;
 }
 
 .cyber-btn.primary {
   border-color: rgba(56, 247, 255, 0.75);
   background: linear-gradient(180deg, rgba(56, 247, 255, 0.24), rgba(38, 90, 132, 0.5));
   box-shadow: 0 0 24px rgba(56, 247, 255, 0.18);
+}
+
+.cyber-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(56, 247, 255, 0.18);
+}
+
+.cyber-btn:hover::after {
+  left: 122%;
+}
+
+.cyber-btn:active {
+  transform: translateY(1px) scale(0.98);
 }
 
 .menu-stats {
@@ -69,6 +135,41 @@
 
 .menu-stats strong {
   font-size: 1.3rem;
+  animation: scoreBlink 1.9s ease-in-out infinite;
+}
+
+@keyframes menuGridDrift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 54px, 54px 0; }
+}
+
+@keyframes menuLightSweep {
+  0%, 100% { background-position: 0 0, 0 0, 160% 0; opacity: 0.55; }
+  50% { background-position: 0 0, 0 0, 10% 0; opacity: 0.9; }
+}
+
+@keyframes menuRise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes logoPulse {
+  0%, 100% {
+    text-shadow:
+      0 0 22px rgba(56, 247, 255, 0.42),
+      7px 0 0 rgba(255, 79, 216, 0.34);
+  }
+  50% {
+    text-shadow:
+      0 0 34px rgba(56, 247, 255, 0.72),
+      -5px 0 0 rgba(255, 79, 216, 0.46),
+      0 0 18px rgba(68, 255, 117, 0.25);
+  }
+}
+
+@keyframes scoreBlink {
+  0%, 100% { color: #fff; text-shadow: 0 0 8px rgba(255, 212, 71, 0.3); }
+  50% { color: #ffd447; text-shadow: 0 0 16px rgba(255, 212, 71, 0.65); }
 }
 
 @media (max-width: 560px) {

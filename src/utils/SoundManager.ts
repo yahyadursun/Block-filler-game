@@ -50,6 +50,26 @@ class SoundManager {
     public playError() {
         this.playTone(150, 0.3, 'sawtooth', 0.1);
     }
+
+    public playBrickHit() {
+        this.playTone(520, 0.045, 'square', 0.045);
+    }
+
+    public playBrickBreak() {
+        this.playTone(720, 0.06, 'triangle', 0.08);
+        setTimeout(() => this.playTone(360, 0.1, 'square', 0.05), 35);
+    }
+
+    public playShieldHit() {
+        this.playTone(880, 0.07, 'triangle', 0.08);
+        setTimeout(() => this.playTone(420, 0.12, 'sawtooth', 0.05), 35);
+    }
+
+    public playShieldBreak() {
+        this.playTone(1200, 0.08, 'square', 0.09);
+        setTimeout(() => this.playTone(760, 0.12, 'triangle', 0.08), 45);
+        setTimeout(() => this.playTone(260, 0.18, 'sawtooth', 0.06), 95);
+    }
 }
 
 export const soundManager = new SoundManager();

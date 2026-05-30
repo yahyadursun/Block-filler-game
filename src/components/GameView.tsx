@@ -21,8 +21,11 @@ const GameView: React.FC = () => {
     linesCleared,
     whiteCells,
     misses,
+    blocksSpawned,
+    remainingBlocks,
     status,
     progress,
+    cells,
     togglePause,
     setView,
     setLevel,
@@ -42,8 +45,13 @@ const GameView: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    engineRef.current?.refreshBoard();
+  }, [cells, level]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) return;
+      const isSoftDrop = event.code === 'KeyS' || event.code === 'ArrowDown';
+      if (event.repeat && !isSoftDrop) return;
       if (status === 'PAUSED' && event.code !== 'KeyP' && event.code !== 'Escape') return;
 
       switch (event.code) {
@@ -93,6 +101,16 @@ const GameView: React.FC = () => {
     resetGame();
   };
 
+  const totalCells = currentLevel.gridSize * currentLevel.gridSize;
+  const usedBlocks = currentLevel.blockLimit - remainingBlocks;
+  const boardProgress = Math.min(1, cells.size / totalCells);
+  const visibleProgress = Math.max(progress, boardProgress);
+  const progressWidth = visibleProgress > 0 ? Math.max(4, visibleProgress * 100) : 0;
+  const deckRatio = remainingBlocks / currentLevel.blockLimit;
+  const deckBarColor = deckRatio > 0.55 ? '#44ff75' : deckRatio > 0.25 ? '#ffd447' : '#ff4f6d';
+  const deckBarWidth = remainingBlocks > 0 ? Math.max(3, deckRatio * 100) : 0;
+  const deckState = deckRatio > 0.55 ? 'healthy' : deckRatio > 0.25 ? 'warning' : 'critical';
+
   return (
     <div className="game-container">
       <canvas ref={canvasRef} />
@@ -111,8 +129,8 @@ const GameView: React.FC = () => {
           <strong>{level}</strong>
         </div>
         <div className="hud-stat hide-mobile">
-          <span className="label">Rekor</span>
-          <strong>{bestScore}</strong>
+          <span className="label">Kalan Blok</span>
+          <strong>{remainingBlocks}</strong>
         </div>
 
         <button className="pause-btn" type="button" onClick={togglePause}>
@@ -124,25 +142,54 @@ const GameView: React.FC = () => {
         <div>
           <span className="label">Hedef</span>
           <strong>
-            {whiteCells}/{currentLevel.gridSize * currentLevel.gridSize} beyaz
+            {whiteCells}/{totalCells} beyaz
           </strong>
         </div>
+        <div className="remaining-blocks">
+          <span className="label">Kalan Blok</span>
+          <strong>{remainingBlocks}</strong>
+        </div>
         <div className="progress-track" aria-hidden="true">
-          <span style={{ width: `${progress * 100}%` }} />
+          <span style={{ width: `${progressWidth}%` }} />
+        </div>
+        <div className="progress-readout">
+          <span>Tahta: {cells.size}/{totalCells}</span>
+          <span>Beyaz: {Math.round(progress * 100)}%</span>
         </div>
         <div className="level-meta">
           <span>{currentLevel.gridSize}x{currentLevel.gridSize}</span>
           <span>{currentLevel.directions.map((dir) => directionLabels[dir]).join(' / ')}</span>
+          <span>Hazir: {currentLevel.starterCells}</span>
           <span>Cizgi: {linesCleared}</span>
-          <span>Hak: {Math.max(0, 3 - misses)}</span>
+          <span>Blok: {usedBlocks}/{currentLevel.blockLimit}</span>
+          <span>Kacan: {misses}</span>
+          <span>Rekor: {bestScore}</span>
         </div>
       </aside>
 
-      <aside className="next-panel">
-        <span className="label">Siradaki</span>
+      <aside className={`next-panel ${deckState}`}>
+        <div className="next-panel-header">
+          <span className="label">Siradaki</span>
+          <strong>{remainingBlocks} blok</strong>
+        </div>
+        <div className="deck-meter" aria-label="Kalan blok deposu">
+          <span
+            style={{
+              width: `${deckBarWidth}%`,
+              backgroundColor: deckBarColor,
+              boxShadow: `0 0 16px ${deckBarColor}88`,
+            }}
+          />
+        </div>
+        <div className="deck-readout">
+          {remainingBlocks}/{currentLevel.blockLimit}
+        </div>
         <div className="queue-list">
-          {nextPieces.map((piece) => (
+          {nextPieces.map((piece, index) => (
             <div key={piece.id} className="queue-item" title={piece.name}>
+              <span className="queue-count">
+                No {blocksSpawned + index + 1}/{currentLevel.blockLimit}
+              </span>
               <div className="preview-grid">
                 {piece.shape.map((row, y) => (
                   <div key={y} className="preview-row">
@@ -190,14 +237,14 @@ const GameView: React.FC = () => {
               {status === 'LEVEL_COMPLETE'
                 ? `Bolum ${level} tamamlandi`
                 : status === 'GAME_OVER'
-                  ? 'Tahta kitlendi'
+                  ? 'Bloklar bitti'
                   : 'Nefes zamani'}
             </h2>
             <p>
           {status === 'LEVEL_COMPLETE'
-                ? 'Tahtanin tum hucreleri beyaza dondu. Sonraki bolum daha zor bir yon duzeni acacak.'
+                ? 'Tahtanin tum hucreleri beyaza dondu. Yildizlar kalan blok ve kacirilan blok sayisina gore hesaplandi.'
                 : status === 'GAME_OVER'
-                  ? 'Uc parca kacirdin. Bloklar dolu alanlardan gecebilir, ama sadece bos alana yerlestirilebilir.'
+                  ? 'Bu bolumun blok hakki bitti. Daha az blok kacirip bos alanlara daha verimli yerlestirmeyi dene.'
                   : 'P tusu veya Devam ile oyuna donebilirsin.'}
             </p>
             <div className="state-actions">
