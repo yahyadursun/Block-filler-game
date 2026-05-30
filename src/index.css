@@ -21,6 +21,8 @@ body {
   font-family: 'VT323', monospace;
   overflow: hidden;
   image-rendering: pixelated;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 h1, h2, h3 {

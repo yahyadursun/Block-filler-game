@@ -167,6 +167,8 @@ const ParkourMode: React.FC = () => {
   const layoutRef = useRef<Layout>({ startX: 0, startY: 0, cell: 32, width: 0, height: 0 });
   const dropTimerRef = useRef(0);
   const penaltyTimerRef = useRef<number | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const lastControlAtRef = useRef(0);
   const [mode, setMode] = useState<Mode>('BUILD');
   const [blockCount, setBlockCount] = useState(0);
   const [piecesUsed, setPiecesUsed] = useState(0);
@@ -255,12 +257,13 @@ const ParkourMode: React.FC = () => {
       window.removeEventListener('resize', resize);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       if (penaltyTimerRef.current) window.clearTimeout(penaltyTimerRef.current);
+      if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
     };
   }, []);
 
   const makeLayout = (width: number, height: number): Layout => {
     const nextPanelReserve = width >= 980 ? 188 : 24;
-    const hudReserve = width < 760 ? 214 : 184;
+    const hudReserve = width < 760 ? 300 : 184;
     const usableWidth = Math.min(width - nextPanelReserve - 36, 1080);
     const usableHeight = Math.min(Math.max(280, height - hudReserve), 610);
     const cell = Math.max(20, Math.floor(Math.min(usableWidth / COLS, usableHeight / ROWS)));
@@ -268,7 +271,7 @@ const ParkourMode: React.FC = () => {
     const boardHeight = cell * ROWS;
     return {
       startX: Math.floor((width - boardWidth) / 2),
-      startY: width < 760 ? 150 : 104,
+      startY: width < 760 ? 166 : 104,
       cell,
       width: boardWidth,
       height: boardHeight,
@@ -564,7 +567,7 @@ const ParkourMode: React.FC = () => {
       x: layout.startX + gridX * layout.cell + layout.cell / 2,
       y: layout.startY + gridY * layout.cell + layout.cell / 2,
       age: 0,
-      maxAge: kind === 'break' || kind === 'brickBreak' ? 34 : 20,
+      maxAge: kind === 'break' || kind === 'brickBreak' ? 24 : 12,
       kind,
       color,
     });
@@ -610,12 +613,13 @@ const ParkourMode: React.FC = () => {
       queue.timer += 1;
       if (queue.timer >= 5) {
         const origin = cannonOrigin();
+        const ballRadius = Math.max(4, Math.min(7, layoutRef.current.cell * (window.innerWidth < 760 ? 0.16 : 0.18)));
         ballsRef.current.push({
           x: origin.x,
           y: origin.y,
           vx: queue.vx,
           vy: queue.vy,
-          radius: 8,
+          radius: ballRadius,
           alive: true,
           color: '#ffffff',
           hitFlash: 0,
@@ -682,7 +686,7 @@ const ParkourMode: React.FC = () => {
       brick.hp -= 1;
       brick.hitFlash = 12;
       ball.hitFlash = 10;
-      addImpactEffect(x, y, brick.hp <= 0 ? 'brickBreak' : 'brickHit', brick.color);
+      if (brick.hp <= 0) addImpactEffect(x, y, 'brickBreak', brick.color);
       if (brick.hp <= 0) {
         blocksRef.current.delete(key);
         soundManager.playBrickBreak();
@@ -717,6 +721,41 @@ const ParkourMode: React.FC = () => {
     modeRef.current = 'BUILD';
     setMode('BUILD');
   };
+
+  const vibrate = (duration = 12) => {
+    if ('vibrate' in navigator) navigator.vibrate(duration);
+  };
+
+  const stopHold = () => {
+    if (!holdTimerRef.current) return;
+    window.clearInterval(holdTimerRef.current);
+    holdTimerRef.current = null;
+  };
+
+  const startHold = (action: () => void, repeat = false) => {
+    stopHold();
+    lastControlAtRef.current = Date.now();
+    action();
+    vibrate();
+    if (!repeat) return;
+    holdTimerRef.current = window.setInterval(action, 96);
+  };
+
+  const touchButtonProps = (action: () => void, repeat = false) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      startHold(action, repeat);
+    },
+    onPointerUp: stopHold,
+    onPointerCancel: stopHold,
+    onPointerLeave: stopHold,
+    onClick: () => {
+      if (Date.now() - lastControlAtRef.current < 180) return;
+      action();
+      vibrate();
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault(),
+  });
 
   const draw = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.clearRect(0, 0, width, height);
@@ -873,38 +912,29 @@ const ParkourMode: React.FC = () => {
       const progress = effect.age / effect.maxAge;
       const alpha = 1 - progress;
       const isBreak = effect.kind === 'break' || effect.kind === 'brickBreak';
+      const isShieldHit = effect.kind === 'hit';
       const color = effect.color || SHIELD_COLOR;
-      const radius = isBreak ? 18 + progress * 46 : 10 + progress * 26;
+      const radius = isBreak ? 14 + progress * 30 : 8 + progress * 12;
       ctx.save();
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = isBreak ? alpha * 0.72 : alpha * 0.42;
       ctx.strokeStyle = isBreak ? '#ffffff' : color;
-      ctx.shadowBlur = isBreak ? 28 : 18;
+      ctx.shadowBlur = isBreak ? 16 : 8;
       ctx.shadowColor = color;
-      ctx.lineWidth = isBreak ? 4 : 3;
-      ctx.beginPath();
-      ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.lineWidth = isBreak ? 2.5 : 1.5;
+      if (isBreak) {
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.fillStyle = color;
-      for (let i = 0; i < (isBreak ? 10 : 5); i += 1) {
-        const angle = (Math.PI * 2 * i) / (isBreak ? 10 : 5) + progress * 0.9;
-        const sparkDistance = (isBreak ? 14 : 9) + progress * (isBreak ? 58 : 32);
-        const sparkSize = (isBreak ? 3.5 : 2.4) * alpha;
+      for (let i = 0; i < (isBreak ? 5 : isShieldHit ? 3 : 0); i += 1) {
+        const count = isBreak ? 5 : 3;
+        const angle = (Math.PI * 2 * i) / count + progress * 0.55;
+        const sparkDistance = (isBreak ? 10 : 7) + progress * (isBreak ? 30 : 16);
+        const sparkSize = (isBreak ? 2.2 : 1.6) * alpha;
         ctx.beginPath();
         ctx.arc(effect.x + Math.cos(angle) * sparkDistance, effect.y + Math.sin(angle) * sparkDistance, sparkSize, 0, Math.PI * 2);
         ctx.fill();
-      }
-      if (isBreak) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 8; i += 1) {
-          const angle = (Math.PI * 2 * i) / 8 + progress * 0.7;
-          const inner = 10 + progress * 14;
-          const outer = 22 + progress * 54;
-          ctx.beginPath();
-          ctx.moveTo(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner);
-          ctx.lineTo(effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer);
-          ctx.stroke();
-        }
       }
       ctx.restore();
       effect.age += 1;
@@ -1099,8 +1129,11 @@ const ParkourMode: React.FC = () => {
         {mode === 'BUILD' && (
           <>
             <button type="button" onClick={clearBuild}>Temizle</button>
-            <button type="button" onClick={rotatePiece}>Dondur</button>
-            <button type="button" className="primary-action" onClick={placePiece}>Yerlestir</button>
+            <button type="button" {...touchButtonProps(() => movePiece(-1), true)}>Sol</button>
+            <button type="button" {...touchButtonProps(() => rotatePiece())}>Dondur</button>
+            <button type="button" className="primary-action" {...touchButtonProps(() => placePiece())}>Yerlestir</button>
+            <button type="button" {...touchButtonProps(() => stepPiece(), true)}>Asagi</button>
+            <button type="button" {...touchButtonProps(() => movePiece(1), true)}>Sag</button>
             <button type="button" className="auto-action" onClick={autoBuildParkour}>Oto Kur</button>
             <button type="button" onClick={skipPiece}>Pas Gecir</button>
             <button type="button" onClick={startShooting} disabled={blockCount === 0}>Atis Modu</button>

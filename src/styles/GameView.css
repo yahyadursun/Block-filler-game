@@ -42,6 +42,7 @@ canvas {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 .game-hud,
@@ -419,6 +420,43 @@ button:active {
   height: 48px;
   padding: 0 12px;
   font-size: 1.1rem;
+  touch-action: none;
+}
+
+.touch-controls button[data-control-label] {
+  font-size: 0;
+}
+
+.touch-controls button[data-control-label]::before {
+  content: attr(data-control-label);
+  font-family: system-ui, sans-serif;
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.touch-controls button:nth-child(1)::before {
+  content: '\2039';
+}
+
+.touch-controls button:nth-child(2)::before {
+  content: '\21bb';
+}
+
+.touch-controls button:nth-child(3)::before {
+  content: '\25c6';
+}
+
+.touch-controls button:nth-child(4)::before {
+  content: '\2304';
+}
+
+.touch-controls button:nth-child(5)::before {
+  content: '\203a';
+}
+
+.touch-controls .primary-action[data-control-label]::before {
+  font-size: 1.35rem;
 }
 
 .state-overlay {
@@ -462,9 +500,17 @@ button:active {
 
 @media (max-width: 760px) {
   .game-hud {
-    top: 10px;
+    top: max(8px, env(safe-area-inset-top));
     grid-template-columns: 42px 1fr 1fr auto;
     width: calc(100vw - 20px);
+    min-height: 58px;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .game-hud .hud-stat strong,
+  .pause-btn {
+    font-size: 0.78rem;
   }
 
   .hide-mobile {
@@ -472,33 +518,148 @@ button:active {
   }
 
   .objective-panel {
-    top: 82px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 66px);
     left: 10px;
-    width: calc(100vw - 132px);
-    padding: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: calc(100vw - 20px);
+    padding: 7px 9px;
+    gap: 5px 10px;
   }
 
   .next-panel {
-    top: 82px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 118px);
     right: 10px;
-    width: 104px;
-    padding: 10px;
+    width: 76px;
+    padding: 7px;
+    gap: 5px;
+    opacity: 0.86;
+  }
+
+  .next-panel .queue-list {
+    display: none;
+  }
+
+  .remaining-blocks {
+    display: none;
+  }
+
+  .objective-panel > div:first-child {
+    min-width: 0;
+  }
+
+  .objective-panel strong {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .progress-track {
+    grid-column: 1 / -1;
+    height: 7px;
+  }
+
+  .progress-readout {
+    display: none;
   }
 
   .level-meta {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    font-size: 0.64rem;
+    display: none;
+  }
+
+  .next-panel-header strong {
+    font-size: 0.68rem;
+  }
+
+  .deck-readout {
+    font-size: 0.54rem;
+  }
+
+  .deck-meter {
+    height: 7px;
   }
 
   .touch-controls {
-    bottom: 10px;
-    grid-template-columns: repeat(5, minmax(42px, 1fr));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: auto;
+    left: 10px;
+    grid-template-areas:
+      'drop spacer place gutter left right'
+      'rotate spacer place gutter left right';
+    grid-template-columns: 58px minmax(24px, 1fr) 72px 16px 58px 58px;
+    grid-template-rows: 54px 54px;
     width: calc(100vw - 20px);
+    padding: 9px;
+    gap: 8px;
+    transform: none;
   }
 
   .touch-controls button {
-    height: 46px;
+    height: 54px;
     padding: 0 6px;
+    font-size: 0.86rem;
+  }
+
+  .touch-controls button:nth-child(1) {
+    grid-area: left;
+    align-self: center;
+  }
+
+  .touch-controls button:nth-child(2) {
+    grid-area: rotate;
+  }
+
+  .touch-controls button:nth-child(3) {
+    grid-area: place;
+    height: 100%;
+    align-self: stretch;
+  }
+
+  .touch-controls button:nth-child(4) {
+    grid-area: drop;
+  }
+
+  .touch-controls button:nth-child(5) {
+    grid-area: right;
+    align-self: center;
+  }
+
+  .touch-controls .primary-action {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .game-hud {
+    grid-template-columns: 38px 1fr 1fr 78px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    font-size: 1.4rem;
+  }
+
+  .pause-btn {
+    padding: 0 8px;
+  }
+
+  .objective-panel {
+    width: calc(100vw - 120px);
+  }
+
+  .next-panel {
+    width: 96px;
+  }
+
+  .touch-controls {
+    grid-template-columns: 54px minmax(12px, 1fr) 64px 10px 52px 52px;
+    grid-template-rows: 52px 52px;
+  }
+
+  .touch-controls button {
+    height: 52px;
+  }
+
+  .level-meta {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

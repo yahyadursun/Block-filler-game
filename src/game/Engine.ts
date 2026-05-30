@@ -89,6 +89,13 @@ const weightedShapeNames = (level: number, gridSize: number) => {
   return unlocked.flatMap((name) => Array.from({ length: weights[name] || 1 }, () => name));
 };
 
+const createPieceId = () => {
+  if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `piece-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
 export class GameEngine {
   private app: PIXI.Application;
   private gridGraphics = new PIXI.Graphics();
@@ -139,13 +146,16 @@ export class GameEngine {
 
   private getGridBaseCoords() {
     const size = useGameStore.getState().gridSize;
-    const hudReserve = window.innerWidth < 760 ? 210 : 120;
-    const maxGridWidth = Math.min(window.innerWidth * 0.74, (window.innerHeight - hudReserve) * 0.82, 620);
-    this.cellSize = Math.max(24, Math.floor(maxGridWidth / size));
+    const isMobile = window.innerWidth < 760;
+    const hudReserve = isMobile ? 252 : 120;
+    const availableHeight = Math.max(220, window.innerHeight - hudReserve);
+    const maxGridWidth = Math.min(window.innerWidth * (isMobile ? 0.94 : 0.74), availableHeight * (isMobile ? 0.94 : 0.82), 620);
+    this.cellSize = Math.max(isMobile ? 18 : 24, Math.floor(maxGridWidth / size));
     const totalWidth = size * this.cellSize;
+    const mobileTop = isMobile ? 172 : Math.floor((this.app.screen.height - totalWidth) / 2);
     return {
       startX: Math.floor((this.app.screen.width - totalWidth) / 2),
-      startY: Math.floor((this.app.screen.height - totalWidth) / 2),
+      startY: isMobile ? Math.max(150, Math.min(mobileTop, this.app.screen.height - totalWidth - 124)) : mobileTop,
       totalWidth,
     };
   }
@@ -186,7 +196,7 @@ export class GameEngine {
       const name = shapeNames[Math.floor(Math.random() * shapeNames.length)];
       const color = PIXEL_COLORS[Math.floor(Math.random() * PIXEL_COLORS.length)];
       currentQueue.push({
-        id: crypto.randomUUID(),
+        id: createPieceId(),
         name,
         shape: SHAPES[name].map((row) => [...row]),
         color: color.css,

@@ -61,6 +61,7 @@
 .parkour-controls button,
 .parkour-hud button {
   min-width: 92px;
+  touch-action: none;
 }
 
 .parkour-controls button:disabled {
@@ -262,10 +263,12 @@
 
 @media (max-width: 760px) {
   .parkour-hud {
-    top: 10px;
+    top: max(8px, env(safe-area-inset-top));
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     width: calc(100vw - 20px);
+    min-height: 0;
+    padding: 8px;
   }
 
   .parkour-hud button {
@@ -277,18 +280,23 @@
   }
 
   .parkour-controls {
-    bottom: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: calc(100vw - 20px);
-    flex-wrap: wrap;
+    padding: 9px;
+    gap: 8px;
   }
 
   .parkour-controls button {
-    flex: 1 1 30%;
-    min-width: 88px;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 6px;
+    font-size: 0.72rem;
   }
 
   .parkour-next {
-    top: 150px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 132px);
     right: 10px;
     width: 104px;
     padding: 9px;
@@ -313,7 +321,7 @@
   }
 
   .parkour-penalty {
-    top: 132px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 116px);
   }
 
   .parkour-result {

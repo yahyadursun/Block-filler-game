@@ -13,6 +13,8 @@ const directionLabels = {
 const GameView: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const lastControlAtRef = useRef(0);
   const {
     score,
     bestScore,
@@ -39,6 +41,7 @@ const GameView: React.FC = () => {
     }
 
     return () => {
+      if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
       engineRef.current?.destroy();
       engineRef.current = null;
     };
@@ -100,6 +103,41 @@ const GameView: React.FC = () => {
   const retryLevel = () => {
     resetGame();
   };
+
+  const vibrate = (duration = 12) => {
+    if ('vibrate' in navigator) navigator.vibrate(duration);
+  };
+
+  const stopHold = () => {
+    if (!holdTimerRef.current) return;
+    window.clearInterval(holdTimerRef.current);
+    holdTimerRef.current = null;
+  };
+
+  const startHold = (action: () => void, repeat = false) => {
+    stopHold();
+    lastControlAtRef.current = Date.now();
+    action();
+    vibrate();
+    if (!repeat) return;
+    holdTimerRef.current = window.setInterval(action, 82);
+  };
+
+  const touchButtonProps = (action: () => void, repeat = false) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      startHold(action, repeat);
+    },
+    onPointerUp: stopHold,
+    onPointerCancel: stopHold,
+    onPointerLeave: stopHold,
+    onClick: () => {
+      if (Date.now() - lastControlAtRef.current < 180) return;
+      action();
+      vibrate();
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault(),
+  });
 
   const totalCells = currentLevel.gridSize * currentLevel.gridSize;
   const usedBlocks = currentLevel.blockLimit - remainingBlocks;
@@ -212,19 +250,19 @@ const GameView: React.FC = () => {
       </aside>
 
       <footer className="touch-controls" aria-label="Oyun kontrolleri">
-        <button type="button" onClick={() => engineRef.current?.moveActiveBlocksSideways('LEFT')} aria-label="Sola kaydir">
+        <button type="button" data-control-label="‹" {...touchButtonProps(() => engineRef.current?.moveActiveBlocksSideways('LEFT'), true)} aria-label="Sola kaydir">
           ←
         </button>
-        <button type="button" onClick={() => engineRef.current?.rotateActiveBlocks()} aria-label="Dondur">
+        <button type="button" data-control-label="↻" {...touchButtonProps(() => engineRef.current?.rotateActiveBlocks())} aria-label="Dondur">
           ↻
         </button>
-        <button type="button" className="primary-action" onClick={() => engineRef.current?.attemptPlace()} aria-label="Yerlestir">
-          PLACE
+        <button type="button" data-control-label="◆" className="primary-action" {...touchButtonProps(() => engineRef.current?.attemptPlace())} aria-label="Yerlestir">
+          KOY
         </button>
-        <button type="button" onClick={() => engineRef.current?.accelerateActiveBlocks()} aria-label="Hizlandir">
+        <button type="button" data-control-label="⌄" {...touchButtonProps(() => engineRef.current?.accelerateActiveBlocks(), true)} aria-label="Hizlandir">
           ↓
         </button>
-        <button type="button" onClick={() => engineRef.current?.moveActiveBlocksSideways('RIGHT')} aria-label="Saga kaydir">
+        <button type="button" data-control-label="›" {...touchButtonProps(() => engineRef.current?.moveActiveBlocksSideways('RIGHT'), true)} aria-label="Saga kaydir">
           →
         </button>
       </footer>
