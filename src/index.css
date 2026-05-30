@@ -22,7 +22,7 @@ body {
   overflow: hidden;
   image-rendering: pixelated;
   overscroll-behavior: none;
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 #root {

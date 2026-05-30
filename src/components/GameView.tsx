@@ -157,7 +157,7 @@ const GameView: React.FC = () => {
     const absY = Math.abs(dy);
     const elapsed = Date.now() - gesture.time;
     if (Math.max(absX, absY) < 12 && elapsed < 320) {
-      engineRef.current?.attemptPlace();
+      engineRef.current?.rotateActiveBlocks();
       vibrate();
       return;
     }
@@ -165,7 +165,7 @@ const GameView: React.FC = () => {
     if (absX > absY) {
       engineRef.current?.moveActiveBlocksSideways(dx < 0 ? 'LEFT' : 'RIGHT');
     } else if (dy > 0) {
-      engineRef.current?.accelerateActiveBlocks();
+      engineRef.current?.hardDropActiveBlock();
     } else {
       engineRef.current?.rotateActiveBlocks();
     }

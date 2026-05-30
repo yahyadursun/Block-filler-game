@@ -560,6 +560,24 @@ export class GameEngine {
     if (this.activeBlock) this.activeBlock.stepTimer = 0;
   }
 
+  public hardDropActiveBlock() {
+    if (!this.activeBlock || this.isGameStopped()) return;
+    const block = this.activeBlock;
+    const step = this.getStep(block.direction);
+    let moved = false;
+    while (this.canOccupy(block.shape, block.gridX + step.x, block.gridY + step.y, block.direction)) {
+      block.gridX += step.x;
+      block.gridY += step.y;
+      moved = true;
+      if (this.isPastBoard(block)) {
+        this.missActiveBlock();
+        return;
+      }
+    }
+    if (moved) this.renderActiveBlock();
+    this.attemptPlace();
+  }
+
   public attemptPlace() {
     if (!this.activeBlock || this.isGameStopped()) return false;
     if (!this.canPlace(this.activeBlock.shape, this.activeBlock.gridX, this.activeBlock.gridY)) {

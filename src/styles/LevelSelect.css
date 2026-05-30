@@ -3,12 +3,15 @@
   height: 100vh;
   height: 100dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   padding: 28px;
   background:
     linear-gradient(135deg, rgba(56, 247, 255, 0.09), transparent 36%),
     linear-gradient(315deg, rgba(255, 212, 71, 0.08), transparent 34%),
     #090616;
   color: white;
+  touch-action: pan-y;
 }
 
 .level-header {
