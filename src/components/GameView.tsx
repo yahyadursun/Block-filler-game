@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GAME_SHAPES, GAME_SHAPE_NAMES, GameEngine } from '../game/Engine';
+import SettingsPanel from './SettingsPanel';
 import { useGameStore } from '../store/useGameStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import '../styles/GameView.css';
 
 type AbilityMode = 'BOMB' | 'ROW' | 'COLUMN' | null;
@@ -10,11 +12,14 @@ const GameView: React.FC = () => {
   const engineRef = useRef<GameEngine | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const lastControlAtRef = useRef(0);
-  const gestureRef = useRef({ x: 0, y: 0, time: 0, moved: false });
+  const gestureRef = useRef({ x: 0, y: 0, time: 0, moved: false, softDrop: false });
   const [abilityMode, setAbilityMode] = useState<AbilityMode>(null);
   const [queueEditorOpen, setQueueEditorOpen] = useState(false);
   const [plannedShapes, setPlannedShapes] = useState<string[]>([]);
   const [showCompletionResult, setShowCompletionResult] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { language, vibrationEnabled } = useSettingsStore();
+  const isEnglish = language === 'en';
   const {
     score,
     level,
@@ -43,6 +48,7 @@ const GameView: React.FC = () => {
 
     return () => {
       if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
+      engineRef.current?.deactivateSoftDrop();
       engineRef.current?.destroy();
       engineRef.current = null;
     };
@@ -62,6 +68,13 @@ const GameView: React.FC = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isSoftDrop = event.code === 'KeyS' || event.code === 'ArrowDown';
       if (event.repeat && !isSoftDrop) return;
+      if (settingsOpen) {
+        if (event.code === 'Escape') {
+          event.preventDefault();
+          setSettingsOpen(false);
+        }
+        return;
+      }
       if (queueEditorOpen) {
         if (event.code === 'Escape') {
           event.preventDefault();
@@ -100,7 +113,7 @@ const GameView: React.FC = () => {
         case 'KeyS':
         case 'ArrowDown':
           event.preventDefault();
-          engineRef.current?.accelerateActiveBlocks();
+          if (!event.repeat) engineRef.current?.activateSoftDrop();
           break;
         case 'Space':
           event.preventDefault();
@@ -115,9 +128,20 @@ const GameView: React.FC = () => {
       }
     };
 
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== 'KeyS' && event.code !== 'ArrowDown') return;
+      event.preventDefault();
+      engineRef.current?.deactivateSoftDrop();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [abilityMode, queueEditorOpen, setView, status, togglePause]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      engineRef.current?.deactivateSoftDrop();
+    };
+  }, [abilityMode, queueEditorOpen, setView, settingsOpen, status, togglePause]);
 
   const continueToNextLevel = () => {
     setAbilityMode(null);
@@ -137,7 +161,7 @@ const GameView: React.FC = () => {
   };
 
   const vibrate = (duration = 12) => {
-    if ('vibrate' in navigator) navigator.vibrate(duration);
+    if (vibrationEnabled && 'vibrate' in navigator) navigator.vibrate(duration);
   };
 
   const stopHold = () => {
@@ -172,15 +196,28 @@ const GameView: React.FC = () => {
   });
 
   const handleCanvasPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    gestureRef.current = { x: event.clientX, y: event.clientY, time: Date.now(), moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gestureRef.current = { x: event.clientX, y: event.clientY, time: Date.now(), moved: false, softDrop: false };
   };
 
   const handleCanvasPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const gesture = gestureRef.current;
-    if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) gesture.moved = true;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (Math.hypot(dx, dy) > 12) gesture.moved = true;
+    if (!gesture.softDrop && dy > 28 && Math.abs(dy) > Math.abs(dx)) {
+      gesture.softDrop = true;
+      engineRef.current?.activateSoftDrop();
+      vibrate();
+    }
   };
 
   const handleCanvasPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const gesture = gestureRef.current;
+    engineRef.current?.deactivateSoftDrop();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     if (abilityMode) {
       const applied =
         abilityMode === 'BOMB'
@@ -193,7 +230,7 @@ const GameView: React.FC = () => {
       }
       return;
     }
-    const gesture = gestureRef.current;
+    if (gesture.softDrop) return;
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
     const absX = Math.abs(dx);
@@ -208,11 +245,18 @@ const GameView: React.FC = () => {
     if (absX > absY) {
       engineRef.current?.moveActiveBlocksSideways(dx < 0 ? 'LEFT' : 'RIGHT');
     } else if (dy > 0) {
-      engineRef.current?.activateSoftDrop();
+      engineRef.current?.accelerateActiveBlocks();
     } else {
       engineRef.current?.rotateActiveBlocks();
     }
     vibrate();
+  };
+
+  const handleCanvasPointerCancel = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    engineRef.current?.deactivateSoftDrop();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   const deckRatio = remainingBlocks / currentLevel.blockLimit;
@@ -253,7 +297,7 @@ const GameView: React.FC = () => {
         onPointerDown={handleCanvasPointerDown}
         onPointerMove={handleCanvasPointerMove}
         onPointerUp={handleCanvasPointerUp}
-        onPointerCancel={stopHold}
+        onPointerCancel={handleCanvasPointerCancel}
       />
 
       <header className="game-hud">
@@ -262,24 +306,24 @@ const GameView: React.FC = () => {
         </button>
 
         <div className="hud-stat">
-          <span className="label">Skor</span>
+          <span className="label">{isEnglish ? 'Score' : 'Skor'}</span>
           <strong>{score}</strong>
         </div>
         <div className="hud-stat">
-          <span className="label">Bolum</span>
+          <span className="label">{isEnglish ? 'Level' : 'Bolum'}</span>
           <strong>{level}</strong>
         </div>
         <div className="hud-stat hide-mobile">
-          <span className="label">Kalan Blok</span>
+          <span className="label">{isEnglish ? 'Blocks left' : 'Kalan Blok'}</span>
           <strong>{remainingBlocks}</strong>
         </div>
         <button className="pause-btn" type="button" onClick={togglePause} disabled={Boolean(abilityMode)}>
-          {status === 'PAUSED' ? 'Devam' : 'Duraklat'}
+          {status === 'PAUSED' ? (isEnglish ? 'Resume' : 'Devam') : (isEnglish ? 'Pause' : 'Duraklat')}
         </button>
         <aside className={`next-panel ${deckState}`}>
         <div className="next-panel-header">
-          <span className="label">Siradaki 5 Blok</span>
-          <strong>{remainingBlocks} blok</strong>
+          <span className="label">{isEnglish ? 'Next 5 blocks' : 'Siradaki 5 Blok'}</span>
+          <strong>{remainingBlocks} {isEnglish ? 'blocks' : 'blok'}</strong>
         </div>
         <div className="deck-meter" aria-label="Kalan blok deposu">
           <span
@@ -321,7 +365,7 @@ const GameView: React.FC = () => {
       </header>
 
       <div className={`miss-streak-alert${missStreak >= 4 ? ' critical' : ''}`}>
-        <span className="label">Atlanan</span>
+        <span className="label">{isEnglish ? 'Skipped' : 'Atlanan'}</span>
         <strong>{missStreak}/5</strong>
         <span className="miss-streak-meter" aria-label={`Atlanan blok serisi ${missStreak}/5`}>
           <span style={{ width: `${(missStreak / 5) * 100}%` }} />
@@ -329,7 +373,7 @@ const GameView: React.FC = () => {
       </div>
 
       <aside className="ability-dock" aria-label="Yetenekler">
-        <span className="dock-label">Yetenekler</span>
+        <span className="dock-label">{isEnglish ? 'Abilities' : 'Yetenekler'}</span>
         <button
           className={`ability-toggle bomb-toggle${abilityMode === 'BOMB' ? ' active' : ''}`}
           type="button"
@@ -483,44 +527,56 @@ const GameView: React.FC = () => {
       {((status === 'PAUSED' && !abilityMode && !queueEditorOpen) || (status === 'LEVEL_COMPLETE' && showCompletionResult) || status === 'GAME_OVER') && (
         <div className="state-overlay" role="dialog" aria-modal="true">
           <div className="state-panel">
-            <span className="label">{status === 'LEVEL_COMPLETE' ? 'Basarili' : status === 'GAME_OVER' ? 'Oyun bitti' : 'Duraklatildi'}</span>
+            <span className="label">
+              {status === 'LEVEL_COMPLETE'
+                ? (isEnglish ? 'Success' : 'Basarili')
+                : status === 'GAME_OVER'
+                  ? (isEnglish ? 'Game over' : 'Oyun bitti')
+                  : (isEnglish ? 'Paused' : 'Duraklatildi')}
+            </span>
             <h2>
               {status === 'LEVEL_COMPLETE'
-                ? `Bolum ${level} tamamlandi`
+                ? (isEnglish ? `Level ${level} complete` : `Bolum ${level} tamamlandi`)
                 : status === 'GAME_OVER'
-                  ? 'Bloklar bitti'
-                  : 'Nefes zamani'}
+                  ? (isEnglish ? 'No blocks left' : 'Bloklar bitti')
+                  : (isEnglish ? 'Take a breath' : 'Nefes zamani')}
             </h2>
             <p>
-          {status === 'LEVEL_COMPLETE'
-                ? 'Tahtanin tum hucreleri beyaza dondu. Yildizlar kalan blok ve kacirilan blok sayisina gore hesaplandi.'
+              {status === 'LEVEL_COMPLETE'
+                ? (isEnglish ? 'Every board cell turned white. Stars are based on remaining and skipped blocks.' : 'Tahtanin tum hucreleri beyaza dondu. Yildizlar kalan blok ve kacirilan blok sayisina gore hesaplandi.')
                 : status === 'GAME_OVER'
-                  ? 'Bu bolumun blok hakki bitti. Daha az blok kacirip bos alanlara daha verimli yerlestirmeyi dene.'
-                  : 'P tusu veya Devam ile oyuna donebilirsin.'}
+                  ? (isEnglish ? 'This level ran out of blocks. Skip fewer pieces and use empty spaces more efficiently.' : 'Bu bolumun blok hakki bitti. Daha az blok kacirip bos alanlara daha verimli yerlestirmeyi dene.')
+                  : (isEnglish ? 'Press P or Resume to return to the game.' : 'P tusu veya Devam ile oyuna donebilirsin.')}
             </p>
             <div className="state-actions">
               {status === 'LEVEL_COMPLETE' && level < 20 && (
                 <button type="button" className="primary-action" onClick={continueToNextLevel}>
-                  Sonraki
+                  {isEnglish ? 'Next' : 'Sonraki'}
                 </button>
               )}
               {status === 'GAME_OVER' && (
                 <button type="button" className="primary-action" onClick={retryLevel}>
-                  Tekrar
+                  {isEnglish ? 'Retry' : 'Tekrar'}
                 </button>
               )}
               {status === 'PAUSED' && (
                 <button type="button" className="primary-action" onClick={togglePause}>
-                  Devam
+                  {isEnglish ? 'Resume' : 'Devam'}
+                </button>
+              )}
+              {status === 'PAUSED' && (
+                <button type="button" onClick={() => setSettingsOpen(true)}>
+                  {isEnglish ? 'Settings' : 'Ayarlar'}
                 </button>
               )}
               <button type="button" onClick={() => setView('LEVEL_SELECT')}>
-                Bolumler
+                {isEnglish ? 'Levels' : 'Bolumler'}
               </button>
             </div>
           </div>
         </div>
       )}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 };

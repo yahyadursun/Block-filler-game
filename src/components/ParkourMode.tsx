@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import type { ParkourLevelData } from '../types/game';
 import { soundManager } from '../utils/SoundManager';
 import '../styles/ParkourMode.css';
@@ -135,6 +136,8 @@ const ParkourMode: React.FC = () => {
   const [shotsLeft, setShotsLeft] = useState(8);
   const [score, setScore] = useState(0);
   const { setView, currentParkourLevel, parkourLevel, parkourLevels, setParkourLevel, completeParkourLevel } = useGameStore();
+  const { language } = useSettingsStore();
+  const isEnglish = language === 'en';
   const targetBricks = currentParkourLevel.targetBricks;
   const volleySize = currentParkourLevel.volleySize;
   const resultStars = mode === 'WON' ? Math.min(5, Math.max(3, 3 + (shotsLeft > 0 ? 1 : 0) + (score >= 600 ? 1 : 0))) : 0;
@@ -636,29 +639,29 @@ const ParkourMode: React.FC = () => {
       />
 
       <header className="parkour-hud">
-        <button type="button" onClick={() => setView('MENU')}>Menu</button>
+        <button type="button" onClick={() => setView('MENU')}>{isEnglish ? 'Menu' : 'Menu'}</button>
         <div>
-          <span className="label">Mod</span>
-          <strong>{mode === 'SHOOT' ? 'Nisan al' : mode === 'WON' ? 'Temizlendi' : 'Hak bitti'}</strong>
+          <span className="label">{isEnglish ? 'Mode' : 'Mod'}</span>
+          <strong>{mode === 'SHOOT' ? (isEnglish ? 'Aim' : 'Nisan al') : mode === 'WON' ? (isEnglish ? 'Cleared' : 'Temizlendi') : (isEnglish ? 'No shots' : 'Hak bitti')}</strong>
         </div>
         <div>
-          <span className="label">Blok</span>
+          <span className="label">{isEnglish ? 'Blocks' : 'Blok'}</span>
           <strong>{blockCount}</strong>
         </div>
         <div>
-          <span className="label">Hedef</span>
+          <span className="label">{isEnglish ? 'Targets' : 'Hedef'}</span>
           <strong>{targetBricks}</strong>
         </div>
         <div>
-          <span className="label">Bolum</span>
+          <span className="label">{isEnglish ? 'Level' : 'Bolum'}</span>
           <strong>{currentParkourLevel.id}</strong>
         </div>
         <div>
-          <span className="label">Tur</span>
+          <span className="label">{isEnglish ? 'Shots' : 'Tur'}</span>
           <strong>{shotsLeft}</strong>
         </div>
         <div>
-          <span className="label">Skor</span>
+          <span className="label">{isEnglish ? 'Score' : 'Skor'}</span>
           <strong>{score}</strong>
         </div>
       </header>
@@ -666,35 +669,35 @@ const ParkourMode: React.FC = () => {
       {(mode === 'WON' || mode === 'LOST') && (
         <section className={`parkour-result ${mode === 'WON' ? 'won' : 'lost'}`}>
           {mode === 'WON' && <div className="result-burst" aria-hidden="true" />}
-          <span className="label">{mode === 'WON' ? 'Parkur temizlendi' : 'Hak bitti'}</span>
-          <strong>{mode === 'WON' ? 'Bolum Fethedildi' : 'Parkur Dayandi'}</strong>
+          <span className="label">{mode === 'WON' ? (isEnglish ? 'Parkour cleared' : 'Parkur temizlendi') : (isEnglish ? 'No shots left' : 'Hak bitti')}</span>
+          <strong>{mode === 'WON' ? (isEnglish ? 'Level Complete' : 'Bolum Fethedildi') : (isEnglish ? 'Parkour Stands' : 'Parkur Dayandi')}</strong>
           {mode === 'WON' && <div className="result-stars">{'*'.repeat(resultStars)}{'-'.repeat(5 - resultStars)}</div>}
           <div className="result-stats">
-            <span><b>{score}</b> Skor</span>
-            <span><b>{shotsLeft}</b> Tur</span>
-            <span><b>{currentParkourLevel.id}</b> Bolum</span>
+            <span><b>{score}</b> {isEnglish ? 'Score' : 'Skor'}</span>
+            <span><b>{shotsLeft}</b> {isEnglish ? 'Shots' : 'Tur'}</span>
+            <span><b>{currentParkourLevel.id}</b> {isEnglish ? 'Level' : 'Bolum'}</span>
           </div>
-          <p>{mode === 'WON' ? 'Tum hedefler dustu. Bolum temizlendi.' : `${blockCount} blok ayakta kaldi. Daha keskin bir aci dene.`}</p>
+          <p>{mode === 'WON' ? (isEnglish ? 'Every target fell. Level cleared.' : 'Tum hedefler dustu. Bolum temizlendi.') : (isEnglish ? `${blockCount} blocks remain. Try a sharper angle.` : `${blockCount} blok ayakta kaldi. Daha keskin bir aci dene.`)}</p>
           <div className="result-actions">
             {mode === 'WON' && (
               <button type="button" className="primary-action" onClick={continueToNextParkourLevel}>
-                {parkourLevel >= parkourLevels.length ? 'Bolum Sec' : 'Sonraki Bolum'}
+                {parkourLevel >= parkourLevels.length ? (isEnglish ? 'Select Level' : 'Bolum Sec') : (isEnglish ? 'Next Level' : 'Sonraki Bolum')}
               </button>
             )}
-            <button type="button" onClick={clearBuild}>Tekrar Dene</button>
-            <button type="button" onClick={() => setView('PARKOUR_SELECT')}>Bolum Sec</button>
+            <button type="button" onClick={clearBuild}>{isEnglish ? 'Retry' : 'Tekrar Dene'}</button>
+            <button type="button" onClick={() => setView('PARKOUR_SELECT')}>{isEnglish ? 'Select Level' : 'Bolum Sec'}</button>
           </div>
         </section>
       )}
 
       <footer className="parkour-controls">
-        <button type="button" onClick={clearBuild}>Bastan Basla</button>
+        <button type="button" onClick={clearBuild}>{isEnglish ? 'Restart' : 'Bastan Basla'}</button>
         {mode === 'WON' && (
           <button type="button" className="primary-action" onClick={continueToNextParkourLevel}>
-            {parkourLevel >= parkourLevels.length ? 'Bolum Sec' : 'Sonraki'}
+            {parkourLevel >= parkourLevels.length ? (isEnglish ? 'Select Level' : 'Bolum Sec') : (isEnglish ? 'Next' : 'Sonraki')}
           </button>
         )}
-        <button type="button" onClick={() => setView('PARKOUR_SELECT')}>Bolum Sec</button>
+        <button type="button" onClick={() => setView('PARKOUR_SELECT')}>{isEnglish ? 'Select Level' : 'Bolum Sec'}</button>
       </footer>
     </main>
   );

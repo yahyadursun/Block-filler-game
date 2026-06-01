@@ -57,7 +57,7 @@ interface BlockData {
   direction: Direction;
   stepTimer: number;
   stepInterval: number;
-  entrySlowTicks: number;
+  entryHoldRemainingMs: number;
   graphics: PIXI.Container;
   ghost: PIXI.Container;
   pixiColor: number;
@@ -121,6 +121,7 @@ export class GameEngine {
   private fxContainer = new PIXI.Container();
   private cellSize = 32;
   private activeBlock: BlockData | null = null;
+  private isSoftDropActive = false;
   private fxItems: FxItem[] = [];
   private spawnTimer = 0;
   private isReady = false;
@@ -163,7 +164,7 @@ export class GameEngine {
   private getGridBaseCoords() {
     const { gridWidth, gridHeight } = useGameStore.getState();
     const isMobile = window.innerWidth < 760;
-    const hudReserve = isMobile ? 330 : 120;
+    const hudReserve = isMobile ? 350 : 120;
     const availableHeight = Math.max(220, window.innerHeight - hudReserve);
     const maxBoardWidth = Math.min(window.innerWidth * (isMobile ? 0.94 : 0.74), 620);
     const maxBoardHeight = availableHeight * (isMobile ? 0.98 : 0.82);
@@ -173,10 +174,10 @@ export class GameEngine {
     );
     const totalWidth = gridWidth * this.cellSize;
     const totalHeight = gridHeight * this.cellSize;
-    const boardTop = isMobile ? 172 : Math.floor((this.app.screen.height - totalHeight) / 2);
+    const boardTop = isMobile ? 188 : Math.floor((this.app.screen.height - totalHeight) / 2);
     return {
       startX: Math.floor((this.app.screen.width - totalWidth) / 2),
-      startY: isMobile ? Math.max(160, Math.min(boardTop, this.app.screen.height - totalHeight - 158)) : boardTop,
+      startY: isMobile ? Math.max(178, Math.min(boardTop, this.app.screen.height - totalHeight - 158)) : boardTop,
       totalWidth,
       totalHeight,
     };
@@ -276,10 +277,10 @@ export class GameEngine {
 
     if (direction === 'DOWN') {
       gridX = Math.floor(Math.random() * Math.max(1, gridWidth - width + 1));
-      gridY = -height;
+      gridY = 0;
     } else if (direction === 'UP') {
       gridX = Math.floor(Math.random() * Math.max(1, gridWidth - width + 1));
-      gridY = gridHeight;
+      gridY = gridHeight - height;
     } else if (direction === 'RIGHT') {
       gridX = -width;
       gridY = Math.floor(Math.random() * Math.max(1, gridHeight - height + 1));
@@ -299,8 +300,8 @@ export class GameEngine {
       id: nextPiece.id,
       direction,
       stepTimer: 0,
-      stepInterval: useGameStore.getState().currentLevel.speed,
-      entrySlowTicks: direction === 'DOWN' ? 2 : 1,
+      stepInterval: this.isSoftDropActive ? 7 : useGameStore.getState().currentLevel.speed,
+      entryHoldRemainingMs: 3500,
       graphics,
       ghost,
       pixiColor: nextPiece.pixiColor,
@@ -708,9 +709,18 @@ export class GameEngine {
   }
 
   public activateSoftDrop() {
-    if (!this.activeBlock || this.isGameStopped()) return;
+    if (this.isGameStopped()) return;
+    this.isSoftDropActive = true;
+    if (!this.activeBlock) return;
+    this.activeBlock.entryHoldRemainingMs = 0;
     this.activeBlock.stepInterval = Math.min(this.activeBlock.stepInterval, 7);
     this.accelerateActiveBlocks();
+  }
+
+  public deactivateSoftDrop() {
+    this.isSoftDropActive = false;
+    if (!this.activeBlock) return;
+    this.activeBlock.stepInterval = useGameStore.getState().currentLevel.speed;
   }
 
   public hardDropActiveBlock() {
@@ -787,8 +797,8 @@ export class GameEngine {
   private isInEntryZone(block: BlockData) {
     const { gridWidth, gridHeight } = useGameStore.getState();
     const { width, height } = shapeSize(block.shape);
-    if (block.direction === 'DOWN') return block.gridY + height <= 1;
-    if (block.direction === 'UP') return block.gridY >= gridHeight - 1;
+    if (block.direction === 'DOWN') return block.gridY <= 0;
+    if (block.direction === 'UP') return block.gridY + height >= gridHeight;
     if (block.direction === 'RIGHT') return block.gridX + width <= 1;
     return block.gridX >= gridWidth - 1;
   }
@@ -800,8 +810,7 @@ export class GameEngine {
   private stepActiveBlock(force = false) {
     if (!this.activeBlock) return;
     const block = this.activeBlock;
-    if (!force && block.entrySlowTicks > 0 && this.isInEntryZone(block)) {
-      block.entrySlowTicks -= 1;
+    if (block.entryHoldRemainingMs > 0 && this.isInEntryZone(block)) {
       this.renderActiveBlock();
       return;
     }
@@ -813,6 +822,7 @@ export class GameEngine {
       block.gridX = nextX;
       block.gridY = nextY;
       this.renderActiveBlock();
+      if (this.isSoftDropActive || force) soundManager.playSoftDrop();
       if (this.isPastBoard(block)) this.missActiveBlock();
       return;
     }
@@ -926,6 +936,9 @@ export class GameEngine {
       }
       return;
     }
+
+    this.activeBlock.entryHoldRemainingMs = Math.max(0, this.activeBlock.entryHoldRemainingMs - ticker.deltaMS);
+    if (this.activeBlock.entryHoldRemainingMs > 0) return;
 
     this.activeBlock.stepTimer += delta;
     if (this.activeBlock.stepTimer >= this.getCurrentStepInterval(this.activeBlock)) {

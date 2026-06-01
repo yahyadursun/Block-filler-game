@@ -70,7 +70,7 @@ const directionPlan = (level: number): Direction[] => {
 
 const makeLevel = (index: number): LevelData => {
   const id = index + 1;
-  const gridSize = Math.min(12, 7 + Math.floor(index / 3));
+  const gridSize = Math.min(10, 7 + Math.floor(index / 3));
   const gridHeight = Math.min(12, gridSize + 3);
   const verticalBoardAllowance = Math.ceil((gridHeight - gridSize) * gridSize * 0.45);
   return {
@@ -80,7 +80,7 @@ const makeLevel = (index: number): LevelData => {
     difficulty: 1 + index * 0.18,
     gridSize,
     directions: directionPlan(id),
-    speed: 34,
+    speed: 51,
     blockLimit: Math.min(150, 44 + index * 3 + Math.floor(index / 3) * 7 + verticalBoardAllowance),
     starterCells: id <= 3 ? 0 : Math.min(Math.floor(gridSize * gridHeight * 0.3), 5 + (id - 4) * 3),
   };

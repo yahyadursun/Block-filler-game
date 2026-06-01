@@ -1,0 +1,105 @@
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 3, 10, 0.76);
+  backdrop-filter: blur(12px);
+}
+
+.settings-panel {
+  display: grid;
+  gap: 10px;
+  width: min(480px, 100%);
+  padding: 18px;
+  border: 1px solid rgba(56, 247, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(9, 6, 22, 0.97);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 32px rgba(56, 247, 255, 0.12);
+}
+
+.settings-panel header,
+.settings-panel footer,
+.settings-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-panel h2 {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.settings-close {
+  width: 42px;
+  padding: 0;
+}
+
+.settings-row {
+  min-height: 54px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.settings-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-row strong {
+  color: #fff;
+  font-size: 0.86rem;
+}
+
+.settings-row span {
+  color: #9aa7c7;
+  font-family: system-ui, sans-serif;
+  font-size: 0.76rem;
+}
+
+.settings-row input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: #44ff75;
+}
+
+.settings-slider {
+  display: grid;
+}
+
+.settings-slider input {
+  width: 100%;
+  accent-color: #38f7ff;
+}
+
+.settings-segments {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-segments button {
+  min-width: 48px;
+  min-height: 38px;
+}
+
+.settings-segments button.active {
+  border-color: rgba(56, 247, 255, 0.86);
+  background: rgba(56, 247, 255, 0.18);
+  box-shadow: 0 0 16px rgba(56, 247, 255, 0.18);
+}
+
+.settings-panel footer {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.settings-panel footer button {
+  min-width: 112px;
+}

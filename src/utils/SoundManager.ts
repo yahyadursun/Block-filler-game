@@ -1,5 +1,12 @@
 class SoundManager {
     private ctx: AudioContext | null = null;
+    private enabled = localStorage.getItem('block-filler-sfx-enabled') !== 'false';
+    private volume = Number(localStorage.getItem('block-filler-sfx-volume') || 0.7);
+
+    public configure(enabled: boolean, volume: number) {
+        this.enabled = enabled;
+        this.volume = Math.max(0, Math.min(1, volume));
+    }
 
     private init() {
         if (!this.ctx) {
@@ -8,6 +15,7 @@ class SoundManager {
     }
 
     private playTone(freq: number, duration: number, type: OscillatorType = 'square', volume: number = 0.1) {
+        if (!this.enabled || this.volume <= 0) return;
         this.init();
         if (!this.ctx) return;
 
@@ -17,7 +25,7 @@ class SoundManager {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
 
-        gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+        gain.gain.setValueAtTime(volume * this.volume, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
         osc.connect(gain);
@@ -29,6 +37,10 @@ class SoundManager {
 
     public playMove() {
         this.playTone(440, 0.05, 'square', 0.05);
+    }
+
+    public playSoftDrop() {
+        this.playTone(260, 0.035, 'triangle', 0.035);
     }
 
     public playRotate() {
