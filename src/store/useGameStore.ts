@@ -3,6 +3,12 @@ import type { Direction, GameStatus, LevelData, NextPiece, ParkourLevelData } fr
 
 type View = 'MENU' | 'LEVEL_SELECT' | 'GAME' | 'PARKOUR_SELECT' | 'PARKOUR';
 
+interface AutoClearResult {
+  x: number;
+  y: number;
+  erased: number;
+}
+
 interface GameState {
   currentView: View;
   level: number;
@@ -13,7 +19,12 @@ interface GameState {
   whiteCells: number;
   moves: number;
   misses: number;
+  missStreak: number;
   blocksSpawned: number;
+  bombCharges: number;
+  rowClearCharges: number;
+  columnClearCharges: number;
+  queueDesignerCharges: number;
   status: GameStatus;
   cells: Map<string, number>;
   levels: LevelData[];
@@ -21,6 +32,8 @@ interface GameState {
   nextPieces: NextPiece[];
 
   gridSize: number;
+  gridWidth: number;
+  gridHeight: number;
   currentLevel: LevelData;
   currentParkourLevel: ParkourLevelData;
   progress: number;
@@ -30,13 +43,17 @@ interface GameState {
   setView: (view: View) => void;
   setLevel: (level: number) => void;
   setParkourLevel: (level: number) => void;
+  completeParkourLevel: (stars: number) => void;
   addPlacementScore: (cells: number) => void;
   addCompletedLines: (lines: number) => void;
-  registerMiss: () => void;
+  registerMiss: () => AutoClearResult | null;
   registerBlockSpawned: () => void;
   registerBlockConsumed: () => void;
   togglePause: () => void;
   fillCells: (cells: { x: number; y: number }[], color: number) => void;
+  detonateBomb: (x: number, y: number) => number;
+  clearLine: (axis: 'ROW' | 'COLUMN', index: number) => number;
+  consumeQueueDesigner: () => boolean;
   whitenCompletedLines: () => number;
   unlockNextLevel: () => void;
   completeLevel: () => void;
@@ -48,14 +65,14 @@ interface GameState {
 
 const directionPlan = (level: number): Direction[] => {
   if (level <= 8) return ['DOWN'];
-  if (level <= 12) return ['DOWN', 'UP'];
-  if (level <= 16) return ['DOWN', 'UP', 'RIGHT'];
-  return ['DOWN', 'UP', 'LEFT', 'RIGHT'];
+  return ['DOWN', 'UP'];
 };
 
 const makeLevel = (index: number): LevelData => {
   const id = index + 1;
   const gridSize = Math.min(12, 7 + Math.floor(index / 3));
+  const gridHeight = Math.min(12, gridSize + 3);
+  const verticalBoardAllowance = Math.ceil((gridHeight - gridSize) * gridSize * 0.45);
   return {
     id,
     unlocked: true,
@@ -63,26 +80,31 @@ const makeLevel = (index: number): LevelData => {
     difficulty: 1 + index * 0.18,
     gridSize,
     directions: directionPlan(id),
-    speed: Math.max(10, 34 - index),
-    blockLimit: Math.min(150, 44 + index * 3 + Math.floor(index / 3) * 7),
-    starterCells: id <= 3 ? 0 : Math.min(Math.floor(gridSize * gridSize * 0.3), 5 + (id - 4) * 3),
+    speed: 34,
+    blockLimit: Math.min(150, 44 + index * 3 + Math.floor(index / 3) * 7 + verticalBoardAllowance),
+    starterCells: id <= 3 ? 0 : Math.min(Math.floor(gridSize * gridHeight * 0.3), 5 + (id - 4) * 3),
   };
 };
 
 const initialLevels = Array.from({ length: 20 }, (_, i) => makeLevel(i));
 
+export const getLevelBoardDimensions = (level: LevelData) => ({
+  width: level.gridSize,
+  height: Math.min(12, level.gridSize + 3),
+});
+
 const makeParkourLevel = (index: number): ParkourLevelData => {
   const id = index + 1;
   const presets = [
-    { buildBlockLimit: 24, volleySize: 14, shotLimit: 7, hpBonus: 0, dropInterval: 72, starterCells: 10 },
-    { buildBlockLimit: 30, volleySize: 17, shotLimit: 7, hpBonus: 0, dropInterval: 68, starterCells: 18 },
-    { buildBlockLimit: 36, volleySize: 21, shotLimit: 6, hpBonus: 1, dropInterval: 64, starterCells: 28 },
-    { buildBlockLimit: 42, volleySize: 25, shotLimit: 6, hpBonus: 1, dropInterval: 60, starterCells: 40 },
-    { buildBlockLimit: 48, volleySize: 30, shotLimit: 5, hpBonus: 2, dropInterval: 56, starterCells: 52 },
-    { buildBlockLimit: 56, volleySize: 36, shotLimit: 5, hpBonus: 2, dropInterval: 52, starterCells: 66 },
-    { buildBlockLimit: 64, volleySize: 43, shotLimit: 5, hpBonus: 3, dropInterval: 49, starterCells: 80 },
-    { buildBlockLimit: 72, volleySize: 50, shotLimit: 4, hpBonus: 3, dropInterval: 46, starterCells: 96 },
-    { buildBlockLimit: 82, volleySize: 58, shotLimit: 4, hpBonus: 4, dropInterval: 43, starterCells: 112 },
+    { targetBricks: 34, volleySize: 14, shotLimit: 7, hpBonus: 0, starterCells: 8 },
+    { targetBricks: 42, volleySize: 17, shotLimit: 7, hpBonus: 0, starterCells: 12 },
+    { targetBricks: 50, volleySize: 21, shotLimit: 7, hpBonus: 1, starterCells: 16 },
+    { targetBricks: 60, volleySize: 25, shotLimit: 6, hpBonus: 1, starterCells: 20 },
+    { targetBricks: 70, volleySize: 30, shotLimit: 6, hpBonus: 2, starterCells: 24 },
+    { targetBricks: 80, volleySize: 36, shotLimit: 6, hpBonus: 2, starterCells: 28 },
+    { targetBricks: 90, volleySize: 43, shotLimit: 5, hpBonus: 3, starterCells: 32 },
+    { targetBricks: 100, volleySize: 50, shotLimit: 5, hpBonus: 3, starterCells: 36 },
+    { targetBricks: 112, volleySize: 58, shotLimit: 5, hpBonus: 4, starterCells: 40 },
   ];
   const preset = presets[index] ?? presets[presets.length - 1];
   return {
@@ -98,9 +120,6 @@ const initialParkourLevels = Array.from({ length: 9 }, (_, i) => makeParkourLeve
 const getCurrentLevel = (state: Pick<GameState, 'levels' | 'level'>) =>
   state.levels[Math.max(0, Math.min(state.levels.length - 1, state.level - 1))];
 
-const getCurrentParkourLevel = (state: Pick<GameState, 'parkourLevels' | 'parkourLevel'>) =>
-  state.parkourLevels[Math.max(0, Math.min(state.parkourLevels.length - 1, state.parkourLevel - 1))];
-
 const countWhiteCells = (cells: Map<string, number>) =>
   Array.from(cells.values()).filter((color) => color === 0xffffff).length;
 
@@ -115,13 +134,13 @@ const seededRandom = (seed: number) => {
   };
 };
 
-const makeStarterCells = (level: LevelData) => {
+const makeStarterCells = (level: LevelData, gridWidth: number, gridHeight: number) => {
   const cells = new Map<string, number>();
   if (level.starterCells <= 0) return cells;
 
-  const random = seededRandom(level.id * 9973 + level.gridSize * 37);
+  const random = seededRandom(level.id * 9973 + gridWidth * 37 + gridHeight * 53);
   const addCell = (x: number, y: number) => {
-    if (x < 0 || x >= level.gridSize || y < 0 || y >= level.gridSize) return;
+    if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
     if (cells.size >= level.starterCells) return;
     const color = STARTER_COLORS[(x + y + level.id) % STARTER_COLORS.length];
     cells.set(`${x},${y}`, color);
@@ -130,10 +149,12 @@ const makeStarterCells = (level: LevelData) => {
   const lanes = Math.max(2, Math.min(5, Math.floor(level.id / 3)));
   for (let i = 0; i < lanes && cells.size < level.starterCells; i += 1) {
     const horizontal = i % 2 === 0;
-    const line = Math.floor(random() * level.gridSize);
-    const gap = Math.floor(random() * level.gridSize);
-    const length = Math.min(level.gridSize - 1, 3 + Math.floor(random() * Math.max(2, level.gridSize - 3)));
-    const start = Math.floor(random() * Math.max(1, level.gridSize - length + 1));
+    const lineLimit = horizontal ? gridHeight : gridWidth;
+    const pathLimit = horizontal ? gridWidth : gridHeight;
+    const line = Math.floor(random() * lineLimit);
+    const gap = Math.floor(random() * pathLimit);
+    const length = Math.min(pathLimit - 1, 3 + Math.floor(random() * Math.max(2, pathLimit - 3)));
+    const start = Math.floor(random() * Math.max(1, pathLimit - length + 1));
 
     for (let offset = 0; offset < length; offset += 1) {
       const pos = start + offset;
@@ -144,18 +165,20 @@ const makeStarterCells = (level: LevelData) => {
   }
 
   while (cells.size < level.starterCells) {
-    const x = Math.floor(random() * level.gridSize);
-    const y = Math.floor(random() * level.gridSize);
+    const x = Math.floor(random() * gridWidth);
+    const y = Math.floor(random() * gridHeight);
     addCell(x, y);
   }
 
   return new Map(
     Array.from(cells.entries()).filter(([key]) => {
       const [x, y] = key.split(',').map(Number);
-      return x >= 0 && x < level.gridSize && y >= 0 && y < level.gridSize;
+      return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
     }),
   );
 };
+
+const initialBoard = getLevelBoardDimensions(initialLevels[0]);
 
 export const useGameStore = create<GameState>((set, get) => ({
   currentView: 'MENU',
@@ -167,38 +190,55 @@ export const useGameStore = create<GameState>((set, get) => ({
   whiteCells: 0,
   moves: 0,
   misses: 0,
+  missStreak: 0,
   blocksSpawned: 0,
+  bombCharges: 1,
+  rowClearCharges: 1,
+  columnClearCharges: 1,
+  queueDesignerCharges: 1,
   remainingBlocks: initialLevels[0].blockLimit,
   status: 'READY',
   cells: new Map<string, number>(),
   levels: initialLevels,
   parkourLevels: initialParkourLevels,
   nextPieces: [],
-
-  get currentLevel() {
-    return getCurrentLevel(get());
-  },
-  get currentParkourLevel() {
-    return getCurrentParkourLevel(get());
-  },
-  get gridSize() {
-    return get().currentLevel.gridSize;
-  },
-  get progress() {
-    const totalCells = get().gridSize * get().gridSize;
-    return Math.min(1, get().whiteCells / totalCells);
-  },
-  get isPaused() {
-    return get().status === 'PAUSED';
-  },
+  currentLevel: initialLevels[0],
+  currentParkourLevel: initialParkourLevels[0],
+  gridSize: initialLevels[0].gridSize,
+  gridWidth: initialBoard.width,
+  gridHeight: initialBoard.height,
+  progress: 0,
+  isPaused: false,
 
   setView: (view) => set({ currentView: view }),
   setLevel: (level) =>
     set((state) => {
       const nextLevel = state.levels[Math.max(0, Math.min(state.levels.length - 1, level - 1))];
-      return { level, remainingBlocks: nextLevel.blockLimit };
+      const board = getLevelBoardDimensions(nextLevel);
+      return {
+        level,
+        currentLevel: nextLevel,
+        gridSize: nextLevel.gridSize,
+        gridWidth: board.width,
+        gridHeight: board.height,
+        progress: 0,
+        remainingBlocks: nextLevel.blockLimit,
+        nextPieces: [],
+      };
     }),
-  setParkourLevel: (parkourLevel) => set({ parkourLevel }),
+  setParkourLevel: (parkourLevel) =>
+    set((state) => {
+      const currentParkourLevel = state.parkourLevels[Math.max(0, Math.min(state.parkourLevels.length - 1, parkourLevel - 1))];
+      return { parkourLevel, currentParkourLevel };
+    }),
+  completeParkourLevel: (stars) =>
+    set((state) => {
+      const parkourLevels = state.parkourLevels.map((level) => ({ ...level }));
+      const current = parkourLevels[state.parkourLevel - 1];
+      current.stars = Math.max(current.stars, stars);
+      if (state.parkourLevel < parkourLevels.length) parkourLevels[state.parkourLevel].unlocked = true;
+      return { parkourLevels, currentParkourLevel: current };
+    }),
 
   addPlacementScore: (cells) =>
     set((state) => ({
@@ -211,24 +251,77 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (lines <= 0) return;
     const lineScore = lines * 140;
     const comboBonus = lines > 1 ? (lines - 1) * lines * 180 : 0;
-    set((state) => ({
-      score: state.score + lineScore + comboBonus,
-      linesCleared: state.linesCleared + lines,
-      whiteCells: countWhiteCells(state.cells),
-    }));
-    if (get().whiteCells >= get().gridSize * get().gridSize) {
+    set((state) => {
+      const whiteCells = countWhiteCells(state.cells);
+      return {
+        score: state.score + lineScore + comboBonus,
+        linesCleared: state.linesCleared + lines,
+        whiteCells,
+        progress: Math.min(1, whiteCells / (state.gridWidth * state.gridHeight)),
+      };
+    });
+    if (get().whiteCells >= get().gridWidth * get().gridHeight) {
       get().completeLevel();
     }
   },
 
-  registerMiss: () =>
-    set((state) => {
-      const misses = state.misses + 1;
-      return {
+  registerMiss: () => {
+    const state = get();
+    const misses = state.misses + 1;
+    const missStreak = state.missStreak + 1;
+    if (missStreak < 5) {
+      set({
         misses,
+        missStreak,
         score: Math.max(0, state.score - 30),
-      };
-    }),
+      });
+      return null;
+    }
+    if (state.cells.size === 0) {
+      set({
+        misses,
+        missStreak: 0,
+        score: Math.max(0, state.score - 30),
+      });
+      return null;
+    }
+
+    const cells = new Map(state.cells);
+    const occupied = Array.from(cells.keys()).map((key) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y };
+    });
+    const countArea = (x: number, y: number) => {
+      let count = 0;
+      for (let offsetY = -1; offsetY <= 2; offsetY += 1) {
+        for (let offsetX = -1; offsetX <= 2; offsetX += 1) {
+          if (cells.has(`${x + offsetX},${y + offsetY}`)) count += 1;
+        }
+      }
+      return count;
+    };
+    const isolated = occupied.find(({ x, y }) => countArea(x, y) === 1);
+    const target =
+      isolated ??
+      occupied.reduce((best, candidate) => (countArea(candidate.x, candidate.y) > countArea(best.x, best.y) ? candidate : best));
+
+    let erased = 0;
+    for (let offsetY = -1; offsetY <= 2; offsetY += 1) {
+      for (let offsetX = -1; offsetX <= 2; offsetX += 1) {
+        if (cells.delete(`${target.x + offsetX},${target.y + offsetY}`)) erased += 1;
+      }
+    }
+    const whiteCells = countWhiteCells(cells);
+    set({
+      cells,
+      misses,
+      missStreak: 0,
+      whiteCells,
+      progress: Math.min(1, whiteCells / (state.gridWidth * state.gridHeight)),
+      score: Math.max(0, state.score - 30) + erased * 25,
+    });
+    return { ...target, erased };
+  },
 
   registerBlockSpawned: () =>
     set((state) => {
@@ -245,7 +338,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   togglePause: () =>
     set((state) => {
       if (state.status === 'LEVEL_COMPLETE' || state.status === 'GAME_OVER') return {};
-      return { status: state.status === 'PAUSED' ? 'PLAYING' : 'PAUSED' };
+      const status = state.status === 'PAUSED' ? 'PLAYING' : 'PAUSED';
+      return { status, isPaused: status === 'PAUSED' };
     }),
 
   fillCells: (cells, color) =>
@@ -255,13 +349,72 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { cells: newCells };
     }),
 
+  detonateBomb: (x, y) => {
+    const state = get();
+    if (state.bombCharges <= 0) return 0;
+    const cells = new Map(state.cells);
+    let erased = 0;
+    for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+      for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+        const key = `${x + offsetX},${y + offsetY}`;
+        if (cells.delete(key)) erased += 1;
+      }
+    }
+    if (erased === 0) return 0;
+    const whiteCells = countWhiteCells(cells);
+    set({
+      cells,
+      bombCharges: state.bombCharges - 1,
+      whiteCells,
+      progress: Math.min(1, whiteCells / (state.gridWidth * state.gridHeight)),
+      score: state.score + erased * 25,
+    });
+    return erased;
+  },
+
+  clearLine: (axis, index) => {
+    const state = get();
+    const charges = axis === 'ROW' ? state.rowClearCharges : state.columnClearCharges;
+    if (charges <= 0) return 0;
+
+    const cells = new Map(state.cells);
+    let erased = 0;
+    const length = axis === 'ROW' ? state.gridWidth : state.gridHeight;
+    for (let offset = 0; offset < length; offset += 1) {
+      const key = axis === 'ROW' ? `${offset},${index}` : `${index},${offset}`;
+      if (!cells.has(key)) continue;
+      cells.delete(key);
+      erased += 1;
+    }
+    if (erased === 0) return 0;
+
+    const whiteCells = countWhiteCells(cells);
+    set({
+      cells,
+      whiteCells,
+      progress: Math.min(1, whiteCells / (state.gridWidth * state.gridHeight)),
+      score: state.score + erased * 25,
+      ...(axis === 'ROW'
+        ? { rowClearCharges: state.rowClearCharges - 1 }
+        : { columnClearCharges: state.columnClearCharges - 1 }),
+    });
+    return erased;
+  },
+
+  consumeQueueDesigner: () => {
+    const state = get();
+    if (state.queueDesignerCharges <= 0) return false;
+    set({ queueDesignerCharges: state.queueDesignerCharges - 1 });
+    return true;
+  },
+
   whitenCompletedLines: () => {
     const state = get();
     const toWhiten = new Set<string>();
     let cleared = 0;
 
-    for (let y = 0; y < state.gridSize; y += 1) {
-      const keys = Array.from({ length: state.gridSize }, (_, x) => `${x},${y}`);
+    for (let y = 0; y < state.gridHeight; y += 1) {
+      const keys = Array.from({ length: state.gridWidth }, (_, x) => `${x},${y}`);
       const full = keys.every((key) => state.cells.has(key));
       const hasNewColor = keys.some((key) => state.cells.get(key) !== 0xffffff);
       if (full && hasNewColor) {
@@ -270,8 +423,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
 
-    for (let x = 0; x < state.gridSize; x += 1) {
-      const keys = Array.from({ length: state.gridSize }, (_, y) => `${x},${y}`);
+    for (let x = 0; x < state.gridWidth; x += 1) {
+      const keys = Array.from({ length: state.gridHeight }, (_, y) => `${x},${y}`);
       const full = keys.every((key) => state.cells.has(key));
       const hasNewColor = keys.some((key) => state.cells.get(key) !== 0xffffff);
       if (full && hasNewColor) {
@@ -283,7 +436,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (toWhiten.size > 0) {
       const newCells = new Map(state.cells);
       toWhiten.forEach((key) => newCells.set(key, 0xffffff));
-      set({ cells: newCells, whiteCells: countWhiteCells(newCells) });
+      const whiteCells = countWhiteCells(newCells);
+      set({ cells: newCells, whiteCells, progress: Math.min(1, whiteCells / (state.gridWidth * state.gridHeight)) });
     }
 
     return cleared;
@@ -310,14 +464,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (state.level < newLevels.length) newLevels[state.level].unlocked = true;
       const bestScore = Math.max(state.bestScore, state.score);
       localStorage.setItem('block-filler-best', String(bestScore));
-      return { levels: newLevels, bestScore, status: 'LEVEL_COMPLETE' };
+      return { levels: newLevels, bestScore, status: 'LEVEL_COMPLETE', isPaused: false };
     }),
 
   gameOver: () =>
     set((state) => {
       const bestScore = Math.max(state.bestScore, state.score);
       localStorage.setItem('block-filler-best', String(bestScore));
-      return { bestScore, status: 'GAME_OVER' };
+      return { bestScore, status: 'GAME_OVER', isPaused: false };
     }),
 
   setNextPieces: (pieces) => set({ nextPieces: pieces }),
@@ -331,16 +485,28 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () =>
     set((state) => {
       const level = getCurrentLevel(state);
+      const board = getLevelBoardDimensions(level);
+      const cells = makeStarterCells(level, board.width, board.height);
+      const whiteCells = countWhiteCells(cells);
       return {
         score: 0,
         linesCleared: 0,
-        whiteCells: 0,
+        whiteCells,
         moves: 0,
         misses: 0,
+        missStreak: 0,
         blocksSpawned: 0,
+        bombCharges: 1,
+        rowClearCharges: 1,
+        columnClearCharges: 1,
+        queueDesignerCharges: 1,
         remainingBlocks: level.blockLimit,
         status: 'PLAYING',
-        cells: makeStarterCells(level),
+        isPaused: false,
+        gridWidth: board.width,
+        gridHeight: board.height,
+        progress: Math.min(1, whiteCells / (board.width * board.height)),
+        cells,
         nextPieces: [],
       };
     }),

@@ -22,11 +22,10 @@ export interface ParkourLevelData {
     id: number;
     unlocked: boolean;
     stars: number;
-    buildBlockLimit: number;
+    targetBricks: number;
     volleySize: number;
     shotLimit: number;
     hpBonus: number;
-    dropInterval: number;
     starterCells: number;
 }
 

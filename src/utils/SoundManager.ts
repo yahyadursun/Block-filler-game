@@ -47,8 +47,29 @@ class SoundManager {
         });
     }
 
+    public playLineComplete(lines = 1) {
+        const notes = lines > 1 ? [440, 660, 880, 1100] : [440, 660, 880];
+        notes.forEach((freq, index) => {
+            setTimeout(() => this.playTone(freq, 0.12, index === notes.length - 1 ? 'triangle' : 'square', 0.075), index * 48);
+        });
+        if (lines > 1) {
+            setTimeout(() => this.playTone(1320, 0.18, 'triangle', 0.085), 190);
+        }
+    }
+
     public playError() {
         this.playTone(150, 0.3, 'sawtooth', 0.1);
+    }
+
+    public playBomb() {
+        this.playTone(180, 0.16, 'sawtooth', 0.12);
+        setTimeout(() => this.playTone(90, 0.28, 'square', 0.11), 35);
+        setTimeout(() => this.playTone(48, 0.38, 'sine', 0.12), 70);
+    }
+
+    public playLineClearPower() {
+        this.playTone(920, 0.08, 'sawtooth', 0.08);
+        setTimeout(() => this.playTone(520, 0.16, 'triangle', 0.075), 48);
     }
 
     public playBrickHit() {
@@ -60,16 +81,6 @@ class SoundManager {
         setTimeout(() => this.playTone(360, 0.1, 'square', 0.05), 35);
     }
 
-    public playShieldHit() {
-        this.playTone(880, 0.07, 'triangle', 0.08);
-        setTimeout(() => this.playTone(420, 0.12, 'sawtooth', 0.05), 35);
-    }
-
-    public playShieldBreak() {
-        this.playTone(1200, 0.08, 'square', 0.09);
-        setTimeout(() => this.playTone(760, 0.12, 'triangle', 0.08), 45);
-        setTimeout(() => this.playTone(260, 0.18, 'sawtooth', 0.06), 95);
-    }
 }
 
 export const soundManager = new SoundManager();

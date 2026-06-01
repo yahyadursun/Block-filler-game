@@ -1,14 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import { GameEngine } from '../game/Engine';
+import React, { useEffect, useRef, useState } from 'react';
+import { GAME_SHAPES, GAME_SHAPE_NAMES, GameEngine } from '../game/Engine';
 import { useGameStore } from '../store/useGameStore';
 import '../styles/GameView.css';
 
-const directionLabels = {
-  DOWN: 'Asagi',
-  UP: 'Yukari',
-  LEFT: 'Sol',
-  RIGHT: 'Sag',
-};
+type AbilityMode = 'BOMB' | 'ROW' | 'COLUMN' | null;
 
 const GameView: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -16,23 +11,28 @@ const GameView: React.FC = () => {
   const holdTimerRef = useRef<number | null>(null);
   const lastControlAtRef = useRef(0);
   const gestureRef = useRef({ x: 0, y: 0, time: 0, moved: false });
+  const [abilityMode, setAbilityMode] = useState<AbilityMode>(null);
+  const [queueEditorOpen, setQueueEditorOpen] = useState(false);
+  const [plannedShapes, setPlannedShapes] = useState<string[]>([]);
+  const [showCompletionResult, setShowCompletionResult] = useState(false);
   const {
     score,
-    bestScore,
     level,
     currentLevel,
-    linesCleared,
-    whiteCells,
-    misses,
     blocksSpawned,
+    missStreak,
+    bombCharges,
+    rowClearCharges,
+    columnClearCharges,
+    queueDesignerCharges,
     remainingBlocks,
     status,
-    progress,
     cells,
     togglePause,
     setView,
     setLevel,
     resetGame,
+    consumeQueueDesigner,
     nextPieces,
   } = useGameStore();
 
@@ -53,9 +53,32 @@ const GameView: React.FC = () => {
   }, [cells, level]);
 
   useEffect(() => {
+    if (status !== 'LEVEL_COMPLETE') return;
+    const timer = window.setTimeout(() => setShowCompletionResult(true), 1900);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isSoftDrop = event.code === 'KeyS' || event.code === 'ArrowDown';
       if (event.repeat && !isSoftDrop) return;
+      if (queueEditorOpen) {
+        if (event.code === 'Escape') {
+          event.preventDefault();
+          setQueueEditorOpen(false);
+          setPlannedShapes([]);
+          togglePause();
+        }
+        return;
+      }
+      if (abilityMode) {
+        if (event.code === 'Escape') {
+          event.preventDefault();
+          setAbilityMode(null);
+          togglePause();
+        }
+        return;
+      }
       if (status === 'PAUSED' && event.code !== 'KeyP' && event.code !== 'Escape') return;
 
       switch (event.code) {
@@ -94,14 +117,22 @@ const GameView: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setView, status, togglePause]);
+  }, [abilityMode, queueEditorOpen, setView, status, togglePause]);
 
   const continueToNextLevel = () => {
+    setAbilityMode(null);
+    setQueueEditorOpen(false);
+    setPlannedShapes([]);
+    setShowCompletionResult(false);
     setLevel(Math.min(20, level + 1));
     resetGame();
   };
 
   const retryLevel = () => {
+    setAbilityMode(null);
+    setQueueEditorOpen(false);
+    setPlannedShapes([]);
+    setShowCompletionResult(false);
     resetGame();
   };
 
@@ -150,6 +181,18 @@ const GameView: React.FC = () => {
   };
 
   const handleCanvasPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (abilityMode) {
+      const applied =
+        abilityMode === 'BOMB'
+          ? engineRef.current?.detonateBombAtScreenPoint(event.clientX, event.clientY)
+          : engineRef.current?.clearLineAtScreenPoint(abilityMode, event.clientX, event.clientY);
+      if (applied) {
+        setAbilityMode(null);
+        togglePause();
+        vibrate(36);
+      }
+      return;
+    }
     const gesture = gestureRef.current;
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
@@ -165,25 +208,46 @@ const GameView: React.FC = () => {
     if (absX > absY) {
       engineRef.current?.moveActiveBlocksSideways(dx < 0 ? 'LEFT' : 'RIGHT');
     } else if (dy > 0) {
-      engineRef.current?.hardDropActiveBlock();
+      engineRef.current?.activateSoftDrop();
     } else {
       engineRef.current?.rotateActiveBlocks();
     }
     vibrate();
   };
 
-  const totalCells = currentLevel.gridSize * currentLevel.gridSize;
-  const usedBlocks = currentLevel.blockLimit - remainingBlocks;
-  const boardProgress = Math.min(1, cells.size / totalCells);
-  const visibleProgress = Math.max(progress, boardProgress);
-  const progressWidth = visibleProgress > 0 ? Math.max(4, visibleProgress * 100) : 0;
   const deckRatio = remainingBlocks / currentLevel.blockLimit;
   const deckBarColor = deckRatio > 0.55 ? '#44ff75' : deckRatio > 0.25 ? '#ffd447' : '#ff4f6d';
   const deckBarWidth = remainingBlocks > 0 ? Math.max(3, deckRatio * 100) : 0;
   const deckState = deckRatio > 0.55 ? 'healthy' : deckRatio > 0.25 ? 'warning' : 'critical';
+  const toggleAbilityMode = (mode: Exclude<AbilityMode, null>, charges: number) => {
+    if (charges <= 0 || (status !== 'PLAYING' && abilityMode !== mode)) return;
+    setAbilityMode((active) => (active === mode ? null : mode));
+    togglePause();
+  };
+  const queueSlotCount = nextPieces.length;
+  const openQueueEditor = () => {
+    if (queueDesignerCharges <= 0 || status !== 'PLAYING' || queueSlotCount === 0) return;
+    setPlannedShapes([]);
+    setQueueEditorOpen(true);
+    togglePause();
+  };
+  const closeQueueEditor = () => {
+    setQueueEditorOpen(false);
+    setPlannedShapes([]);
+    togglePause();
+  };
+  const applyQueuePlan = () => {
+    if (plannedShapes.length !== queueSlotCount) return;
+    if (!engineRef.current?.replaceUpcomingShapes(plannedShapes)) return;
+    consumeQueueDesigner();
+    setQueueEditorOpen(false);
+    setPlannedShapes([]);
+    togglePause();
+    vibrate(28);
+  };
 
   return (
-    <div className="game-container">
+    <div className={`game-container${abilityMode ? ' ability-active' : ''}`}>
       <canvas
         ref={canvasRef}
         onPointerDown={handleCanvasPointerDown}
@@ -209,44 +273,12 @@ const GameView: React.FC = () => {
           <span className="label">Kalan Blok</span>
           <strong>{remainingBlocks}</strong>
         </div>
-
-        <button className="pause-btn" type="button" onClick={togglePause}>
+        <button className="pause-btn" type="button" onClick={togglePause} disabled={Boolean(abilityMode)}>
           {status === 'PAUSED' ? 'Devam' : 'Duraklat'}
         </button>
-      </header>
-
-      <aside className="objective-panel">
-        <div>
-          <span className="label">Hedef</span>
-          <strong>
-            {whiteCells}/{totalCells} beyaz
-          </strong>
-        </div>
-        <div className="remaining-blocks">
-          <span className="label">Kalan Blok</span>
-          <strong>{remainingBlocks}</strong>
-        </div>
-        <div className="progress-track" aria-hidden="true">
-          <span style={{ width: `${progressWidth}%` }} />
-        </div>
-        <div className="progress-readout">
-          <span>Tahta: {cells.size}/{totalCells}</span>
-          <span>Beyaz: {Math.round(progress * 100)}%</span>
-        </div>
-        <div className="level-meta">
-          <span>{currentLevel.gridSize}x{currentLevel.gridSize}</span>
-          <span>{currentLevel.directions.map((dir) => directionLabels[dir]).join(' / ')}</span>
-          <span>Hazir: {currentLevel.starterCells}</span>
-          <span>Cizgi: {linesCleared}</span>
-          <span>Blok: {usedBlocks}/{currentLevel.blockLimit}</span>
-          <span>Kacan: {misses}</span>
-          <span>Rekor: {bestScore}</span>
-        </div>
-      </aside>
-
-      <aside className={`next-panel ${deckState}`}>
+        <aside className={`next-panel ${deckState}`}>
         <div className="next-panel-header">
-          <span className="label">Siradaki</span>
+          <span className="label">Siradaki 5 Blok</span>
           <strong>{remainingBlocks} blok</strong>
         </div>
         <div className="deck-meter" aria-label="Kalan blok deposu">
@@ -264,9 +296,8 @@ const GameView: React.FC = () => {
         <div className="queue-list">
           {nextPieces.map((piece, index) => (
             <div key={piece.id} className="queue-item" title={piece.name}>
-              <span className="queue-count">
-                No {blocksSpawned + index + 1}/{currentLevel.blockLimit}
-              </span>
+              <span className="queue-order">{index + 1}</span>
+              <span className="queue-count">No {blocksSpawned + index + 1}</span>
               <div className="preview-grid">
                 {piece.shape.map((row, y) => (
                   <div key={y} className="preview-row">
@@ -286,6 +317,70 @@ const GameView: React.FC = () => {
             </div>
           ))}
         </div>
+        </aside>
+      </header>
+
+      <div className={`miss-streak-alert${missStreak >= 4 ? ' critical' : ''}`}>
+        <span className="label">Atlanan</span>
+        <strong>{missStreak}/5</strong>
+        <span className="miss-streak-meter" aria-label={`Atlanan blok serisi ${missStreak}/5`}>
+          <span style={{ width: `${(missStreak / 5) * 100}%` }} />
+        </span>
+      </div>
+
+      <aside className="ability-dock" aria-label="Yetenekler">
+        <span className="dock-label">Yetenekler</span>
+        <button
+          className={`ability-toggle bomb-toggle${abilityMode === 'BOMB' ? ' active' : ''}`}
+          type="button"
+          onClick={() => toggleAbilityMode('BOMB', bombCharges)}
+          disabled={bombCharges <= 0 || (status !== 'PLAYING' && abilityMode !== 'BOMB')}
+          aria-pressed={abilityMode === 'BOMB'}
+          aria-label={`Bomba gucu, ${bombCharges} hak`}
+          title="Bomba gucu"
+        >
+          <span className="bomb-icon" aria-hidden="true" />
+          <span>Bomba</span>
+          <strong>{bombCharges}</strong>
+        </button>
+        <button
+          className={`ability-toggle row-clear-toggle${abilityMode === 'ROW' ? ' active' : ''}`}
+          type="button"
+          onClick={() => toggleAbilityMode('ROW', rowClearCharges)}
+          disabled={rowClearCharges <= 0 || (status !== 'PLAYING' && abilityMode !== 'ROW')}
+          aria-pressed={abilityMode === 'ROW'}
+          aria-label={`Satir silici, ${rowClearCharges} hak`}
+          title="Satir silici"
+        >
+          <span className="line-power-icon row" aria-hidden="true" />
+          <span>Satir</span>
+          <strong>{rowClearCharges}</strong>
+        </button>
+        <button
+          className={`ability-toggle column-clear-toggle${abilityMode === 'COLUMN' ? ' active' : ''}`}
+          type="button"
+          onClick={() => toggleAbilityMode('COLUMN', columnClearCharges)}
+          disabled={columnClearCharges <= 0 || (status !== 'PLAYING' && abilityMode !== 'COLUMN')}
+          aria-pressed={abilityMode === 'COLUMN'}
+          aria-label={`Sutun silici, ${columnClearCharges} hak`}
+          title="Sutun silici"
+        >
+          <span className="line-power-icon column" aria-hidden="true" />
+          <span>Sutun</span>
+          <strong>{columnClearCharges}</strong>
+        </button>
+        <button
+          className="ability-toggle queue-designer-toggle"
+          type="button"
+          onClick={openQueueEditor}
+          disabled={queueDesignerCharges <= 0 || status !== 'PLAYING' || nextPieces.length === 0}
+          aria-label={`Sirayi kur, ${queueDesignerCharges} hak`}
+          title="Sonraki bloklari sec"
+        >
+          <span className="queue-power-icon" aria-hidden="true" />
+          <span>Sira</span>
+          <strong>{queueDesignerCharges}</strong>
+        </button>
       </aside>
 
       <footer className="touch-controls" aria-label="Oyun kontrolleri">
@@ -306,7 +401,86 @@ const GameView: React.FC = () => {
         </button>
       </footer>
 
-      {(status === 'PAUSED' || status === 'LEVEL_COMPLETE' || status === 'GAME_OVER') && (
+      {queueEditorOpen && (
+        <div className="queue-editor-overlay" role="dialog" aria-modal="true" aria-label="Sonraki bloklari sec">
+          <section className="queue-editor">
+            <header>
+              <div>
+                <span className="label">Yetenek</span>
+                <h2>Sonraki bloklari sec</h2>
+              </div>
+              <button type="button" className="queue-editor-close" onClick={closeQueueEditor} aria-label="Kapat">X</button>
+            </header>
+            <div className="shape-catalog">
+              {GAME_SHAPE_NAMES.map((name) => (
+                <button
+                  type="button"
+                  className="shape-choice"
+                  key={name}
+                  onClick={() => {
+                    if (plannedShapes.length < queueSlotCount) setPlannedShapes((current) => [...current, name]);
+                  }}
+                  disabled={plannedShapes.length >= queueSlotCount}
+                  title={name}
+                >
+                  <span className="shape-name">{name}</span>
+                  <span className="shape-mini-grid">
+                    {GAME_SHAPES[name].map((row, y) => (
+                      <span className="shape-mini-row" key={`${name}-${y}`}>
+                        {row.map((cell, x) => <span className={cell ? 'filled' : ''} key={`${name}-${y}-${x}`} />)}
+                      </span>
+                    ))}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="queue-editor-slots" aria-label="Secilen blok sirasi">
+              {Array.from({ length: queueSlotCount }, (_, index) => {
+                const name = plannedShapes[index];
+                return (
+                  <button
+                    type="button"
+                    className={`queue-editor-slot${name ? ' filled' : ''}`}
+                    key={index}
+                    onClick={() => setPlannedShapes((current) => current.filter((_, slotIndex) => slotIndex !== index))}
+                    disabled={!name}
+                    aria-label={name ? `${index + 1}. slot ${name}, kaldir` : `${index + 1}. slot bos`}
+                  >
+                    <b>{index + 1}</b>
+                    {name ? (
+                      <span className="shape-mini-grid">
+                        {GAME_SHAPES[name].map((row, y) => (
+                          <span className="shape-mini-row" key={`slot-${index}-${y}`}>
+                            {row.map((cell, x) => <span className={cell ? 'filled' : ''} key={`slot-${index}-${y}-${x}`} />)}
+                          </span>
+                        ))}
+                      </span>
+                    ) : <span className="slot-empty">+</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <footer>
+              <button type="button" onClick={closeQueueEditor}>Vazgec</button>
+              <button type="button" className="primary-action" onClick={applyQueuePlan} disabled={plannedShapes.length !== queueSlotCount}>
+                Uygula
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {status === 'LEVEL_COMPLETE' && !showCompletionResult && (
+        <div className="victory-celebration" role="status" aria-live="polite">
+          <div className="victory-ring" aria-hidden="true" />
+          <div className="victory-ring second" aria-hidden="true" />
+          <span className="victory-kicker">Tahta tamamlandi</span>
+          <strong>Bolum {level}</strong>
+          <span className="victory-caption">Mukemmel!</span>
+        </div>
+      )}
+
+      {((status === 'PAUSED' && !abilityMode && !queueEditorOpen) || (status === 'LEVEL_COMPLETE' && showCompletionResult) || status === 'GAME_OVER') && (
         <div className="state-overlay" role="dialog" aria-modal="true">
           <div className="state-panel">
             <span className="label">{status === 'LEVEL_COMPLETE' ? 'Basarili' : status === 'GAME_OVER' ? 'Oyun bitti' : 'Duraklatildi'}</span>

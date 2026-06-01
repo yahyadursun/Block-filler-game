@@ -3,7 +3,7 @@ import { useGameStore } from '../store/useGameStore';
 import { soundManager } from '../utils/SoundManager';
 import type { Direction } from '../types/game';
 
-const SHAPES: Record<string, number[][]> = {
+export const GAME_SHAPES: Record<string, number[][]> = {
   Dot: [[1]],
   Domino: [[1, 1]],
   Tri: [[1, 1, 1]],
@@ -29,7 +29,19 @@ const SHAPES: Record<string, number[][]> = {
     [1, 0],
     [1, 1],
   ],
+  Fork: [
+    [1, 1],
+    [1, 0],
+    [1, 1],
+  ],
+  LongJay: [
+    [0, 1],
+    [0, 1],
+    [1, 1],
+  ],
 };
+
+export const GAME_SHAPE_NAMES = Object.keys(GAME_SHAPES);
 
 const PIXEL_COLORS = [
   { css: '#38f7ff', pixi: 0x38f7ff },
@@ -68,15 +80,17 @@ const shapeSize = (shape: number[][]) => ({
 
 const rotateShape = (shape: number[][]) => shape[0].map((_, i) => shape.map((row) => row[i] || 0).reverse());
 
-const weightedShapeNames = (level: number, gridSize: number) => {
-  const maxShapeIndex = Math.min(Object.keys(SHAPES).length - 1, 3 + Math.floor(level / 2));
-  const unlocked = Object.keys(SHAPES).filter((_, index) => index <= maxShapeIndex);
+const weightedShapeNames = (level: number, gridSize: number, usedRatio: number) => {
+  const maxShapeIndex = Math.min(GAME_SHAPE_NAMES.length - 1, 3 + Math.floor(level / 2));
+  const unlocked = GAME_SHAPE_NAMES.filter((_, index) => index <= maxShapeIndex);
   const smallWeight = level <= 4 ? 7 : level <= 10 ? 4 : 2;
   const mediumWeight = level <= 4 ? 3 : level <= 10 ? 4 : 5;
   const largeWeight = gridSize >= 10 ? 5 : 2;
+  const lateLevelSmallBoost = level >= 15 ? 6 : level >= 11 ? 3 : 0;
+  const deckSmallBoost = usedRatio >= 0.75 ? 18 : usedRatio >= 0.5 ? 10 : usedRatio >= 0.35 ? 4 : 0;
   const weights: Record<string, number> = {
-    Dot: smallWeight + 2,
-    Domino: smallWeight + 1,
+    Dot: smallWeight + 3 + lateLevelSmallBoost + deckSmallBoost,
+    Domino: smallWeight + 5 + lateLevelSmallBoost + deckSmallBoost,
     Tri: Math.max(2, smallWeight),
     Hook: mediumWeight,
     Square: mediumWeight,
@@ -84,6 +98,8 @@ const weightedShapeNames = (level: number, gridSize: number) => {
     Tee: largeWeight,
     Zee: largeWeight,
     Ell: largeWeight,
+    Fork: largeWeight,
+    LongJay: largeWeight,
   };
 
   return unlocked.flatMap((name) => Array.from({ length: weights[name] || 1 }, () => name));
@@ -109,7 +125,7 @@ export class GameEngine {
   private spawnTimer = 0;
   private isReady = false;
   private isDestroyed = false;
-  private readonly queueSize = 3;
+  private readonly queueSize = 5;
 
   constructor(canvas: HTMLCanvasElement) {
     this.app = new PIXI.Application();
@@ -145,18 +161,24 @@ export class GameEngine {
   }
 
   private getGridBaseCoords() {
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     const isMobile = window.innerWidth < 760;
-    const hudReserve = isMobile ? 252 : 120;
+    const hudReserve = isMobile ? 330 : 120;
     const availableHeight = Math.max(220, window.innerHeight - hudReserve);
-    const maxGridWidth = Math.min(window.innerWidth * (isMobile ? 0.94 : 0.74), availableHeight * (isMobile ? 0.94 : 0.82), 620);
-    this.cellSize = Math.max(isMobile ? 18 : 24, Math.floor(maxGridWidth / size));
-    const totalWidth = size * this.cellSize;
-    const mobileTop = isMobile ? 172 : Math.floor((this.app.screen.height - totalWidth) / 2);
+    const maxBoardWidth = Math.min(window.innerWidth * (isMobile ? 0.94 : 0.74), 620);
+    const maxBoardHeight = availableHeight * (isMobile ? 0.98 : 0.82);
+    this.cellSize = Math.max(
+      isMobile ? 14 : 20,
+      Math.floor(Math.min(maxBoardWidth / gridWidth, maxBoardHeight / gridHeight)),
+    );
+    const totalWidth = gridWidth * this.cellSize;
+    const totalHeight = gridHeight * this.cellSize;
+    const boardTop = isMobile ? 172 : Math.floor((this.app.screen.height - totalHeight) / 2);
     return {
       startX: Math.floor((this.app.screen.width - totalWidth) / 2),
-      startY: isMobile ? Math.max(150, Math.min(mobileTop, this.app.screen.height - totalWidth - 124)) : mobileTop,
+      startY: isMobile ? Math.max(160, Math.min(boardTop, this.app.screen.height - totalHeight - 158)) : boardTop,
       totalWidth,
+      totalHeight,
     };
   }
 
@@ -164,15 +186,15 @@ export class GameEngine {
     if (!this.isReady || this.isDestroyed) return;
     this.gridGraphics.clear();
     const { startX, startY } = this.getGridBaseCoords();
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
 
     this.gridGraphics
-      .roundRect(startX - 10, startY - 10, size * this.cellSize + 20, size * this.cellSize + 20, 8)
+      .roundRect(startX - 10, startY - 10, gridWidth * this.cellSize + 20, gridHeight * this.cellSize + 20, 8)
       .fill({ color: 0x100f24, alpha: 0.86 })
       .stroke({ color: 0x38f7ff, width: 2, alpha: 0.45 });
 
-    for (let y = 0; y < size; y += 1) {
-      for (let x = 0; x < size; x += 1) {
+    for (let y = 0; y < gridHeight; y += 1) {
+      for (let x = 0; x < gridWidth; x += 1) {
         this.gridGraphics
           .rect(startX + x * this.cellSize, startY + y * this.cellSize, this.cellSize - 1, this.cellSize - 1)
           .fill({ color: (x + y) % 2 === 0 ? 0x171532 : 0x12102a, alpha: 0.88 })
@@ -183,9 +205,11 @@ export class GameEngine {
 
   private refillQueue() {
     const currentQueue = [...useGameStore.getState().nextPieces];
-    const level = useGameStore.getState().level;
-    const gridSize = useGameStore.getState().gridSize;
-    const shapeNames = weightedShapeNames(level, gridSize);
+    const state = useGameStore.getState();
+    const level = state.level;
+    const gridSize = state.gridWidth;
+    const usedRatio = state.blocksSpawned / Math.max(1, state.currentLevel.blockLimit);
+    const shapeNames = weightedShapeNames(level, gridSize, usedRatio);
     const availableToQueue = Math.max(
       0,
       useGameStore.getState().currentLevel.blockLimit - useGameStore.getState().blocksSpawned - currentQueue.length,
@@ -198,12 +222,33 @@ export class GameEngine {
       currentQueue.push({
         id: createPieceId(),
         name,
-        shape: SHAPES[name].map((row) => [...row]),
+        shape: GAME_SHAPES[name].map((row) => [...row]),
         color: color.css,
         pixiColor: color.pixi,
       });
     }
     useGameStore.getState().setNextPieces(currentQueue);
+  }
+
+  public replaceUpcomingShapes(names: string[]) {
+    const queue = useGameStore.getState().nextPieces;
+    if (names.length === 0 || names.length !== queue.length) return false;
+    const nextPieces = names.map((name, index) => {
+      const shape = GAME_SHAPES[name];
+      if (!shape) return null;
+      const existing = queue[index];
+      const fallbackColor = PIXEL_COLORS[index % PIXEL_COLORS.length];
+      return {
+        id: createPieceId(),
+        name,
+        shape: shape.map((row) => [...row]),
+        color: existing?.color ?? fallbackColor.css,
+        pixiColor: existing?.pixiColor ?? fallbackColor.pixi,
+      };
+    });
+    if (nextPieces.some((piece) => !piece)) return false;
+    useGameStore.getState().setNextPieces(nextPieces.filter((piece): piece is NonNullable<typeof piece> => Boolean(piece)));
+    return true;
   }
 
   private pickDirection(): Direction {
@@ -223,24 +268,24 @@ export class GameEngine {
     }
     useGameStore.getState().registerBlockSpawned();
 
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     const direction = this.pickDirection();
     const { width, height } = shapeSize(nextPiece.shape);
     let gridX = 0;
     let gridY = 0;
 
     if (direction === 'DOWN') {
-      gridX = Math.floor(Math.random() * Math.max(1, size - width + 1));
+      gridX = Math.floor(Math.random() * Math.max(1, gridWidth - width + 1));
       gridY = -height;
     } else if (direction === 'UP') {
-      gridX = Math.floor(Math.random() * Math.max(1, size - width + 1));
-      gridY = size;
+      gridX = Math.floor(Math.random() * Math.max(1, gridWidth - width + 1));
+      gridY = gridHeight;
     } else if (direction === 'RIGHT') {
       gridX = -width;
-      gridY = Math.floor(Math.random() * Math.max(1, size - height + 1));
+      gridY = Math.floor(Math.random() * Math.max(1, gridHeight - height + 1));
     } else {
-      gridX = size;
-      gridY = Math.floor(Math.random() * Math.max(1, size - height + 1));
+      gridX = gridWidth;
+      gridY = Math.floor(Math.random() * Math.max(1, gridHeight - height + 1));
     }
 
     const graphics = new PIXI.Container();
@@ -416,6 +461,108 @@ export class GameEngine {
     this.playFloatingText('LINE!', { x, y }, 0xffffff, 42);
   }
 
+  private playBombFx(cell: { x: number; y: number }, erased: number) {
+    const center = this.cellCenter(cell);
+    const burst = new PIXI.Graphics();
+    burst.x = center.x;
+    burst.y = center.y;
+    this.addFx(burst, 34, (progress) => {
+      const radius = this.cellSize * (0.28 + progress * 1.85);
+      burst.clear();
+      burst
+        .circle(0, 0, radius)
+        .fill({ color: 0xff9f1c, alpha: 0.24 * (1 - progress) })
+        .stroke({ color: 0xffd447, width: 4, alpha: 0.92 * (1 - progress) })
+        .circle(0, 0, radius * 0.58)
+        .stroke({ color: 0xff4f6d, width: 3, alpha: 0.8 * (1 - progress) });
+    });
+    this.playFloatingText(`+${erased * 25}`, cell, 0xffd447, 34);
+  }
+
+  private playAutoClearFx(cell: { x: number; y: number }, erased: number) {
+    this.playBombFx(cell, erased);
+    const center = this.cellCenter(cell);
+    const wave = new PIXI.Graphics();
+    wave.x = center.x + this.cellSize * 0.5;
+    wave.y = center.y + this.cellSize * 0.5;
+    this.addFx(wave, 38, (progress) => {
+      const size = this.cellSize * (1.8 + progress * 3.2);
+      wave.clear();
+      wave
+        .roundRect(-size / 2, -size / 2, size, size, 8)
+        .stroke({ color: 0xffffff, width: 4, alpha: 0.88 * (1 - progress) });
+    });
+    this.playFloatingText('5X 4x4 TEMIZLIK!', cell, 0xffffff, 26);
+  }
+
+  private playLineClearPowerFx(axis: 'ROW' | 'COLUMN', index: number, erased: number) {
+    const { startX, startY, totalWidth, totalHeight } = this.getGridBaseCoords();
+    const beam = new PIXI.Graphics();
+    this.addFx(beam, 34, (progress) => {
+      const alpha = 0.92 * (1 - progress);
+      const expansion = this.cellSize * progress * 0.9;
+      beam.clear();
+      if (axis === 'ROW') {
+        beam
+          .roundRect(startX - expansion, startY + index * this.cellSize + 3 - expansion / 2, totalWidth + expansion * 2, this.cellSize - 6 + expansion, 6)
+          .fill({ color: 0xffd447, alpha: 0.28 * (1 - progress) })
+          .stroke({ color: 0xffffff, width: 3, alpha });
+      } else {
+        beam
+          .roundRect(startX + index * this.cellSize + 3 - expansion / 2, startY - expansion, this.cellSize - 6 + expansion, totalHeight + expansion * 2, 6)
+          .fill({ color: 0x38f7ff, alpha: 0.28 * (1 - progress) })
+          .stroke({ color: 0xffffff, width: 3, alpha });
+      }
+    });
+    const { gridWidth, gridHeight } = useGameStore.getState();
+    this.playFloatingText(
+      `+${erased * 25}`,
+      axis === 'ROW' ? { x: Math.floor(gridWidth / 2), y: index } : { x: index, y: Math.floor(gridHeight / 2) },
+      0xffffff,
+      34,
+    );
+  }
+
+  private playVictoryFx() {
+    const { gridWidth, gridHeight } = useGameStore.getState();
+    const { startX, startY, totalWidth, totalHeight } = this.getGridBaseCoords();
+    const celebration = new PIXI.Container();
+    const boardPulse = new PIXI.Graphics();
+    celebration.addChild(boardPulse);
+
+    const particles = Array.from({ length: 32 }, (_, index) => {
+      const particle = new PIXI.Graphics()
+        .roundRect(-3, -3, 6, 6, 2)
+        .fill({ color: index % 3 === 0 ? 0xffd447 : index % 3 === 1 ? 0x38f7ff : 0x44ff75, alpha: 1 });
+      const angle = (Math.PI * 2 * index) / 32 + (index % 4) * 0.08;
+      particle.x = startX + totalWidth / 2;
+      particle.y = startY + totalHeight / 2;
+      celebration.addChild(particle);
+      return { particle, angle, distance: Math.max(totalWidth, totalHeight) * (0.38 + (index % 5) * 0.08) };
+    });
+
+    this.addFx(celebration, 118, (progress) => {
+      const pulse = Math.sin(progress * Math.PI);
+      boardPulse.clear();
+      boardPulse
+        .roundRect(startX - 10, startY - 10, totalWidth + 20, totalHeight + 20, 8)
+        .stroke({ color: 0xffffff, width: 4 + pulse * 5, alpha: 0.92 * (1 - progress) })
+        .roundRect(startX - 18 - progress * 16, startY - 18 - progress * 16, totalWidth + 36 + progress * 32, totalHeight + 36 + progress * 32, 12)
+        .stroke({ color: 0x38f7ff, width: 3, alpha: 0.72 * (1 - progress) });
+
+      particles.forEach(({ particle, angle, distance }, index) => {
+        const travel = Math.sin(progress * Math.PI * 0.62) * distance;
+        particle.x = startX + totalWidth / 2 + Math.cos(angle) * travel;
+        particle.y = startY + totalHeight / 2 + Math.sin(angle) * travel + progress * progress * this.cellSize * 2;
+        particle.rotation = progress * (index % 2 === 0 ? 5 : -5);
+        particle.alpha = Math.max(0, 1 - progress * 1.12);
+        particle.scale.set(1 + pulse * 0.85);
+      });
+    });
+
+    this.playFloatingText('TAMAMLANDI!', { x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2) }, 0xffffff, 42);
+  }
+
   private playMissFx(block: BlockData) {
     const flash = new PIXI.Graphics();
     this.addFx(flash, 28, (progress) => {
@@ -427,8 +574,8 @@ export class GameEngine {
     });
 
     const anchor = {
-      x: Math.max(0, Math.min(useGameStore.getState().gridSize - 1, block.gridX)),
-      y: Math.max(0, Math.min(useGameStore.getState().gridSize - 1, block.gridY)),
+      x: Math.max(0, Math.min(useGameStore.getState().gridWidth - 1, block.gridX)),
+      y: Math.max(0, Math.min(useGameStore.getState().gridHeight - 1, block.gridY)),
     };
     this.playFloatingText('-30', anchor, 0xff4f6d, 48);
   }
@@ -488,29 +635,29 @@ export class GameEngine {
   }
 
   private canOccupy(shape: number[][], gridX: number, gridY: number, direction: Direction): boolean {
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     return shape.every((row, y) =>
       row.every((cell, x) => {
         if (!cell) return true;
         const targetX = gridX + x;
         const targetY = gridY + y;
-        if (direction === 'DOWN' || direction === 'UP') return targetX >= 0 && targetX < size;
-        return targetY >= 0 && targetY < size;
+        if (direction === 'DOWN' || direction === 'UP') return targetX >= 0 && targetX < gridWidth;
+        return targetY >= 0 && targetY < gridHeight;
       }),
     );
   }
 
   private isInsideCell(x: number, y: number) {
-    const size = useGameStore.getState().gridSize;
-    return x >= 0 && x < size && y >= 0 && y < size;
+    const { gridWidth, gridHeight } = useGameStore.getState();
+    return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
   }
 
   private isPastBoard(block: BlockData) {
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     const { width, height } = shapeSize(block.shape);
-    if (block.direction === 'DOWN') return block.gridY > size;
+    if (block.direction === 'DOWN') return block.gridY > gridHeight;
     if (block.direction === 'UP') return block.gridY + height < 0;
-    if (block.direction === 'RIGHT') return block.gridX > size;
+    if (block.direction === 'RIGHT') return block.gridX > gridWidth;
     return block.gridX + width < 0;
   }
 
@@ -548,16 +695,22 @@ export class GameEngine {
   }
 
   private sideAxisInBounds(shape: number[][], gridX: number, gridY: number, direction: Direction) {
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     const { width, height } = shapeSize(shape);
-    if (direction === 'DOWN' || direction === 'UP') return gridX >= 0 && gridX + width <= size;
-    return gridY >= 0 && gridY + height <= size;
+    if (direction === 'DOWN' || direction === 'UP') return gridX >= 0 && gridX + width <= gridWidth;
+    return gridY >= 0 && gridY + height <= gridHeight;
   }
 
   public accelerateActiveBlocks() {
     if (!this.activeBlock || this.isGameStopped()) return;
     this.stepActiveBlock(true);
     if (this.activeBlock) this.activeBlock.stepTimer = 0;
+  }
+
+  public activateSoftDrop() {
+    if (!this.activeBlock || this.isGameStopped()) return;
+    this.activeBlock.stepInterval = Math.min(this.activeBlock.stepInterval, 7);
+    this.accelerateActiveBlocks();
   }
 
   public hardDropActiveBlock() {
@@ -588,13 +741,56 @@ export class GameEngine {
     return true;
   }
 
+  public detonateBombAtScreenPoint(screenX: number, screenY: number) {
+    const status = useGameStore.getState().status;
+    if (!this.isReady || this.isDestroyed || !['PLAYING', 'PAUSED'].includes(status)) return false;
+    const { startX, startY } = this.getGridBaseCoords();
+    const x = Math.floor((screenX - startX) / this.cellSize);
+    const y = Math.floor((screenY - startY) / this.cellSize);
+    if (!this.isInsideCell(x, y)) {
+      soundManager.playError();
+      return false;
+    }
+    const erased = useGameStore.getState().detonateBomb(x, y);
+    if (erased === 0) {
+      soundManager.playError();
+      return false;
+    }
+    this.redrawSettledBlocks();
+    this.playBombFx({ x, y }, erased);
+    soundManager.playBomb();
+    return true;
+  }
+
+  public clearLineAtScreenPoint(axis: 'ROW' | 'COLUMN', screenX: number, screenY: number) {
+    const status = useGameStore.getState().status;
+    if (!this.isReady || this.isDestroyed || !['PLAYING', 'PAUSED'].includes(status)) return false;
+    const { startX, startY } = this.getGridBaseCoords();
+    const x = Math.floor((screenX - startX) / this.cellSize);
+    const y = Math.floor((screenY - startY) / this.cellSize);
+    if (!this.isInsideCell(x, y)) {
+      soundManager.playError();
+      return false;
+    }
+    const index = axis === 'ROW' ? y : x;
+    const erased = useGameStore.getState().clearLine(axis, index);
+    if (erased === 0) {
+      soundManager.playError();
+      return false;
+    }
+    this.redrawSettledBlocks();
+    this.playLineClearPowerFx(axis, index, erased);
+    soundManager.playLineClearPower();
+    return true;
+  }
+
   private isInEntryZone(block: BlockData) {
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     const { width, height } = shapeSize(block.shape);
     if (block.direction === 'DOWN') return block.gridY + height <= 1;
-    if (block.direction === 'UP') return block.gridY >= size - 1;
+    if (block.direction === 'UP') return block.gridY >= gridHeight - 1;
     if (block.direction === 'RIGHT') return block.gridX + width <= 1;
-    return block.gridX >= size - 1;
+    return block.gridX >= gridWidth - 1;
   }
 
   private getCurrentStepInterval(block: BlockData) {
@@ -645,6 +841,11 @@ export class GameEngine {
     this.playPlacementFx(cells, block.pixiColor);
     this.playWhiteFx(newWhiteKeys);
     soundManager.playSettle();
+    if (completed > 0) soundManager.playLineComplete(completed);
+    if (useGameStore.getState().status === 'LEVEL_COMPLETE') {
+      this.playVictoryFx();
+      soundManager.playLevelUp();
+    }
     this.finishIfDeckIsEmpty();
   }
 
@@ -655,8 +856,14 @@ export class GameEngine {
     this.ghostContainer.removeChild(this.activeBlock.ghost);
     this.activeBlock = null;
     useGameStore.getState().registerBlockConsumed();
-    useGameStore.getState().registerMiss();
-    soundManager.playError();
+    const autoClear = useGameStore.getState().registerMiss();
+    if (autoClear) {
+      this.redrawSettledBlocks();
+      this.playAutoClearFx(autoClear, autoClear.erased);
+      soundManager.playBomb();
+    } else {
+      soundManager.playError();
+    }
     this.finishIfDeckIsEmpty();
   }
 
@@ -672,10 +879,10 @@ export class GameEngine {
     if (!this.isReady || this.isDestroyed) return;
     this.settledContainer.removeChildren();
     const { startX, startY } = this.getGridBaseCoords();
-    const size = useGameStore.getState().gridSize;
+    const { gridWidth, gridHeight } = useGameStore.getState();
     useGameStore.getState().cells.forEach((color, key) => {
       const [gridX, gridY] = key.split(',').map(Number);
-      if (gridX < 0 || gridX >= size || gridY < 0 || gridY >= size) return;
+      if (gridX < 0 || gridX >= gridWidth || gridY < 0 || gridY >= gridHeight) return;
       const block = new PIXI.Graphics();
       const inset = Math.max(2, Math.floor(this.cellSize * 0.07));
       block
